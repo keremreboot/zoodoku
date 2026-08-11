@@ -1,0 +1,149 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover"
+    />
+    <meta name="theme-color" content="#e9e4d8" />
+    <meta
+      name="description"
+      content="Three animals arrive at once, one per colour. Each may only be settled in a land of its own colour, and what they say about each other leaves exactly one place to put them."
+    />
+    <title>Zoodoku</title>
+    <link
+      rel="icon"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ctext y='26' font-size='26'%3E%F0%9F%A6%81%3C/text%3E%3C/svg%3E"
+    />
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <header class="masthead">
+      <span class="dateline left" id="seed">No. 000000</span>
+      <h1>Zoodoku</h1>
+      <span class="dateline right" id="blurb">Settle the animals</span>
+    </header>
+
+    <div class="rules"></div>
+
+    <main>
+      <canvas id="stage"></canvas>
+      <div id="banner">
+        <strong>Every land settled</strong>
+        <span>Each animal exactly where its own words put it.</span>
+      </div>
+    </main>
+
+    <section class="deal" id="deal" aria-label="Animals waiting to be settled"></section>
+
+    <footer>
+      <div class="readout">
+        <span id="status">—</span>
+        <span id="note">—</span>
+      </div>
+      <div class="bar">
+        <button id="newGame">New</button>
+        <button id="undo">Undo</button>
+        <button id="keyBtn">Key</button>
+        <button id="moreBtn">More</button>
+      </div>
+      <p class="help">
+        Tap an animal, then tap a square — or drag it straight across. Only its
+        own colour will take it, and only where no animal has settled yet.
+        <b>Esc</b> puts it down · <b>U</b> undoes · <b>N</b> deals a new board.
+      </p>
+    </footer>
+
+    <div class="scrim" id="scrim" hidden></div>
+
+    <section class="sheet" id="keySheet" hidden aria-label="Key">
+      <div class="sheet-head">
+        <h2>The key</h2>
+        <button class="close" data-close>Done</button>
+      </div>
+
+      <p class="sheet-note">
+        Three lands, three colours, and one animal from each in every deal. An
+        animal may only be settled in a land of its own colour, and a land takes
+        one animal and no more — so as the board fills, the places a colour can
+        still go run out.
+      </p>
+
+      <div id="legend" class="legend"></div>
+
+      <h3 class="sheet-sub">What the animals mean</h3>
+      <dl class="gloss">
+        <dt>touch</dt>
+        <dd>
+          The two squares share an edge. Corners do not count — an animal that
+          means corners says <i>corner to corner</i>.
+        </dd>
+        <dt>steps</dt>
+        <dd>
+          Moves up, down, left or right between the two squares. A diagonal
+          neighbour is two steps away.
+        </dd>
+        <dt>my land</dt>
+        <dd>
+          The coloured area an animal is standing in, not the colour itself.
+          Two lands border each other when some square of one shares an edge
+          with some square of the other.
+        </dd>
+        <dt>halves</dt>
+        <dd>
+          On a board with an odd number of rows, the middle row belongs to
+          neither half — and likewise the middle column.
+        </dd>
+      </dl>
+    </section>
+
+    <section class="sheet" id="moreSheet" hidden aria-label="Options">
+      <div class="sheet-head">
+        <h2>Options</h2>
+        <button class="close" data-close>Done</button>
+      </div>
+
+      <label class="field"
+        >Board
+        <select id="board">
+          <option value="small">6 × 6 — six lands, two deals</option>
+          <option value="standard" selected>9 × 9 — nine lands, three deals</option>
+          <option value="dense">9 × 9 — twelve lands, four deals</option>
+        </select>
+      </label>
+
+      <label class="field"
+        >Clues
+        <select id="level">
+          <option value="gentle">gentle — plain facts, and one to spare</option>
+          <option value="standard" selected>standard</option>
+          <option value="sharp">sharp — nothing said twice</option>
+        </select>
+      </label>
+
+      <div class="sheet-actions">
+        <button id="clear">Clear this deal</button>
+        <button id="reveal" class="ghost">Give up</button>
+      </div>
+
+      <p class="sheet-note">
+        A deal has exactly one arrangement its clues allow, so the moment your
+        three sit consistently they are right, and the board settles them
+        itself. There is nothing to submit and no way to be wrongly told you
+        were right.
+      </p>
+      <p class="sheet-note">
+        <b>Gentle</b> sticks to plain facts and throws in a clue more than the
+        deal strictly needs. <b>Sharp</b> tells you the bare minimum: take one
+        clue away and the deal would have two answers.
+      </p>
+      <p class="sheet-note">
+        Settled animals are locked, because they were proved rather than
+        guessed. Clearing a deal only clears the one you are on.
+      </p>
+    </section>
+
+    <script type="module" src="./src/main.js"></script>
+  </body>
+</html>
