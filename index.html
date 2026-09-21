@@ -33,6 +33,11 @@
         <strong>Every land settled</strong>
         <span>Each animal exactly where its own words put it.</span>
       </div>
+      <div id="lost" hidden role="alertdialog" aria-labelledby="lostTitle">
+        <strong id="lostTitle">Five strikes</strong>
+        <span>Back to the start of this board — same lands, same animals.</span>
+        <button id="retry">Start again</button>
+      </div>
     </main>
 
     <section class="deal" id="deal" aria-label="Animals waiting to be settled"></section>
@@ -40,18 +45,19 @@
     <footer>
       <div class="readout">
         <span id="status">—</span>
+        <span class="strikes" id="strikes" role="img"></span>
         <span id="note">—</span>
       </div>
       <div class="bar">
         <button id="newGame">New</button>
-        <button id="undo">Undo</button>
         <button id="keyBtn">Key</button>
         <button id="moreBtn">More</button>
       </div>
       <p class="help">
-        Tap an animal, then tap a square — or drag it straight across. Only its
-        own colour will take it, and only where no animal has settled yet.
-        <b>Esc</b> puts it down · <b>U</b> undoes · <b>N</b> deals a new board.
+        Tap an animal, then tap a square — or drag it straight across. It lands
+        when you let go, so slide off the board to change your mind. A wrong
+        square costs a strike; five and the board starts over.
+        <b>Esc</b> puts it down · <b>N</b> deals a new board.
       </p>
     </footer>
 
@@ -123,15 +129,20 @@
       </label>
 
       <div class="sheet-actions">
-        <button id="clear">Clear this deal</button>
         <button id="reveal" class="ghost">Give up</button>
       </div>
 
       <p class="sheet-note">
-        A deal has exactly one arrangement its clues allow, so the moment your
-        three sit consistently they are right, and the board settles them
-        itself. There is nothing to submit and no way to be wrongly told you
-        were right.
+        A deal has exactly one arrangement its clues allow, and all three cards
+        are on the table before anything is placed — so every square can be
+        ruled in or out before you commit. A wrong square costs one of five
+        strikes and the animal stays in hand. The fifth sends you back to the
+        start of the same board.
+      </p>
+      <p class="sheet-note">
+        Squares of the wrong colour, or in a land that already has its animal,
+        are not wrong answers: the board greys them out, and dropping on one
+        costs nothing.
       </p>
       <p class="sheet-note">
         <b>Gentle</b> sticks to plain facts and throws in a clue more than the
@@ -139,8 +150,8 @@
         clue away and the deal would have two answers.
       </p>
       <p class="sheet-note">
-        Settled animals are locked, because they were proved rather than
-        guessed. Clearing a deal only clears the one you are on.
+        An animal only ever lands on its own square, so once it is down it is
+        locked — there is nothing to undo.
       </p>
     </section>
 

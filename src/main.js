@@ -1,14 +1,19 @@
 // Glue: puzzle -> state -> view, plus the cards, the pointer and the sheets.
 //
 // An animal is carried rather than dragged. Pressing a card picks it up and it
-// stays up until it lands somewhere legal, which means the same code serves a
-// drag across the board and a tap here followed by a tap there -- the second
-// being the only one that works well with a thumb on a phone, where the finger
-// covers the very square it is aiming at.
+// stays up until it lands, which means the same code serves a drag across the
+// board and a tap here followed by a tap there -- the second being the only one
+// that works well with a thumb on a phone, where the finger covers the very
+// square it is aiming at.
+//
+// A drop commits when the pointer lifts, never when it lands. With a strike on
+// every wrong square that matters: a thumb can come down a square off, see the
+// ghost under it, and slide across before letting go -- or slide off the board
+// entirely, which puts nothing down and costs nothing.
 
 import { BOARDS, LEVELS, makePuzzle } from './generate.js';
 import { chunks } from './clues.js';
-import { Game } from './state.js';
+import { Game, MAX_STRIKES } from './state.js';
 import { View } from './view.js';
 import { makeRules, mulberry32 } from './util.js';
 
@@ -17,18 +22,18 @@ const view = new View(canvas);
 
 const ui = {};
 for (const id of [
-  'seed', 'blurb', 'status', 'note', 'banner', 'deal', 'legend',
-  'board', 'level', 'newGame', 'undo', 'clear', 'reveal',
+  'seed', 'blurb', 'status', 'note', 'strikes', 'banner', 'lost', 'retry', 'deal',
+  'legend', 'board', 'level', 'newGame', 'reveal',
   'keyBtn', 'moreBtn', 'keySheet', 'moreSheet', 'scrim',
 ]) {
   ui[id] = document.getElementById(id);
 }
 
 let game = null;
+let seed = 0; // of the board in play, so losing can deal the very same one again
 let carry = null; // animal id in hand, or null
-let carryFrom = -1; // where it was standing when picked up, so Esc can put it back
 let press = null; // { x, y, moved, from } for the pointer gesture in progress
-let flash = '';
+let flash = null; // { text, tone } shown in place of the usual note for a moment
 let flashTimer = 0;
 let dirty = true;
 
@@ -62,26 +67,26 @@ function saveSettings() {
   }
 }
 
-function setFlash(msg) {
-  flash = msg;
+function setFlash(text, tone = 'good') {
+  flash = { text, tone };
   clearTimeout(flashTimer);
   flashTimer = setTimeout(() => {
-    flash = '';
+    flash = null;
     refresh();
   }, 2200);
 }
 
 // --- game lifecycle --------------------------------------------------------
 
-function newGame(seed = (Math.random() * 1e9) | 0) {
+function newGame(want = (Math.random() * 1e9) | 0) {
   const board = BOARDS[ui.board.value] ?? BOARDS.standard;
   const level = LEVELS[ui.level.value] ?? LEVELS.standard;
   const R = makeRules(board.N);
 
-  let used = seed >>> 0;
+  let used = want >>> 0;
   let puzzle = null;
   for (let bump = 0; bump < 8 && !puzzle; bump++) {
-    used = (seed + bump * 7919) >>> 0;
+    used = (want + bump * 7919) >>> 0;
     puzzle = makePuzzle(R, mulberry32(used), board, level);
   }
   if (!puzzle) {
@@ -91,13 +96,13 @@ function newGame(seed = (Math.random() * 1e9) | 0) {
   }
 
   game = new Game(puzzle);
+  seed = used;
   carry = null;
-  carryFrom = -1;
-  flash = '';
+  press = null;
+  flash = null;
   view.setPuzzle(game);
   ui.seed.textContent = `No. ${String(used).slice(-6).padStart(6, '0')}`;
   ui.blurb.textContent = puzzle.lands.map((l) => l.name).join(' · ');
-  ui.banner.classList.remove('show');
   history.replaceState(null, '', `#${used}`);
   buildLegend();
   buildDeal();
@@ -198,47 +203,53 @@ function spotlightFor(id) {
   return [...out];
 }
 
+function drawStrikes() {
+  const pips = [];
+  for (let k = 0; k < MAX_STRIKES; k++) {
+    const pip = document.createElement('i');
+    pip.className = k < game.strikes ? 'pip used' : 'pip';
+    pips.push(pip);
+  }
+  ui.strikes.replaceChildren(...pips);
+  ui.strikes.setAttribute('aria-label', `${game.strikes} of ${MAX_STRIKES} strikes used`);
+}
+
 function refresh() {
   if (!game) return;
 
   for (const el of ui.deal.children) {
     const id = Number(el.dataset.id);
     el.classList.toggle('carry', carry === id);
-    el.classList.toggle('placed', game.pos[id] >= 0);
+    el.classList.toggle('settled', game.isPlaced(id));
     el._bits.forEach((span, k) => {
-      const states = el._chunks[k].clues.map((cl) => game.clueState(cl));
-      const state = states.includes('broken')
-        ? 'broken'
-        : states.every((s) => s === 'ok')
-          ? 'ok'
-          : 'pending';
-      span.className = `bit ${state}`;
+      const ready = el._chunks[k].clues.every((cl) => game.clueState(cl) === 'ok');
+      span.className = ready ? 'bit ok' : 'bit';
     });
   }
 
   const total = game.animals.length;
   ui.status.textContent = game.isSolved()
     ? `all ${total} lands settled`
-    : `deal ${game.round + 1} of ${game.rounds} · ${game.settledCount()} of ${total} settled`;
+    : `deal ${game.round + 1} of ${game.rounds} · ${game.settledCount()}/${total} settled`;
 
-  const broken = game.brokenClues().length;
   if (flash) {
-    ui.note.textContent = flash;
-    ui.note.className = 'good';
+    ui.note.textContent = flash.text;
+    ui.note.className = flash.tone;
+  } else if (game.isLost()) {
+    ui.note.textContent = 'out of strikes';
+    ui.note.className = 'warn';
   } else if (game.isSolved()) {
     ui.note.textContent = 'nothing left to place';
     ui.note.className = 'good';
-  } else if (broken) {
-    ui.note.textContent = `${broken} rule${broken === 1 ? '' : 's'} broken`;
-    ui.note.className = 'warn';
   } else {
     const left = game.deal.animals.length - game.handPlaced();
-    ui.note.textContent = left ? `${left} still in hand` : 'checking…';
+    ui.note.textContent = `${left} still in hand`;
     ui.note.className = '';
   }
 
-  ui.undo.disabled = game.undoStack.length === 0;
+  drawStrikes();
   ui.banner.classList.toggle('show', game.isSolved());
+  ui.lost.hidden = !game.isLost();
 
   if (carry == null) view.setHover(-1);
   view.setCarry(carry);
@@ -247,75 +258,75 @@ function refresh() {
 }
 
 /**
- * Take an animal into hand. Lifting is deliberately not recorded: picking a
- * piece up is not a move, and recording it would make undo need two presses to
- * walk back one decision. The square it came from is remembered instead, so the
- * move can be recorded whole when it lands -- and so putting it down again is
- * possible at all.
+ * Why a square refused the animal, said as a hint rather than a telling-off.
+ * Kept short on purpose: the note shares one line with the deal count and the
+ * strike pips, and on a phone a longer one wraps -- which shrinks the board
+ * under the player's thumb at the exact moment they are aiming.
  */
-function pickUp(id) {
-  releaseCarry();
-  carryFrom = game.pos[id];
-  game.lift(id, false);
-  carry = id;
-}
-
-/** Put the carried animal back where it was found. */
-function releaseCarry() {
-  if (carry != null && carryFrom >= 0) game.place(carry, carryFrom, false);
-  carry = null;
-  carryFrom = -1;
+function refusal(id, cell) {
+  const animal = game.animals[id];
+  if (game.puzzle.zoneLand[game.zones.zoneOf[cell]] !== animal.land) {
+    return `only in ${game.puzzle.lands[animal.land].name}`;
+  }
+  return 'that land is taken';
 }
 
 function tryPlace(cell) {
-  if (carry == null || cell < 0 || !game.canPlace(carry, cell)) return false;
-  game.undoStack.push({ id: carry, from: carryFrom });
-  game.place(carry, cell, false);
+  if (carry == null || cell < 0) return;
+  const id = carry;
+  const verdict = game.attempt(id, cell);
+
+  if (verdict === 'illegal') {
+    // costs nothing: the board was already showing that square as unavailable
+    setFlash(refusal(id, cell), '');
+    refresh();
+    return;
+  }
+
   carry = null;
-  carryFrom = -1;
+  if (verdict === 'wrong') {
+    view.miss(cell);
+    ui.strikes.classList.remove('hit');
+    void ui.strikes.offsetWidth; // restart the shake if two strikes land close together
+    ui.strikes.classList.add('hit');
+    if (game.isLost()) {
+      clearTimeout(flashTimer);
+      flash = null;
+    } else {
+      setFlash(`not there — ${game.strikesLeft()} left`, 'warn');
+    }
+    refresh();
+    return;
+  }
+
   if (game.settle()) {
     setFlash(game.isSolved() ? 'the last land is settled' : 'that deal is settled');
     buildDeal();
   }
   refresh();
-  return true;
 }
 
 // --- pointer ---------------------------------------------------------------
 
 ui.deal.addEventListener('pointerdown', (ev) => {
   const el = ev.target.closest?.('.card');
-  if (!el || !game) return;
+  if (!el || !game || game.isLost()) return;
   ev.preventDefault();
   const id = Number(el.dataset.id);
-  if (game.isLocked(id)) return;
-  pickUp(id);
+  if (game.isPlaced(id)) return; // it is where it belongs, and stays there
+  carry = id;
   press = { x: ev.clientX, y: ev.clientY, moved: false, from: 'card' };
   view.setHover(-1);
   refresh();
 });
 
 canvas.addEventListener('pointerdown', (ev) => {
-  if (!game || ev.button !== 0) return;
+  if (!game || ev.button !== 0 || carry == null || game.isLost()) return;
   ev.preventDefault();
-  const cell = view.cellAt(ev.clientX, ev.clientY);
-  if (cell < 0) return;
-
-  if (carry != null) {
-    if (!tryPlace(cell)) {
-      view.setHover(cell);
-      mark();
-    }
-    return;
-  }
-  // lifting a not-yet-settled animal back off the board
-  const id = game.animalAt(cell);
-  if (id >= 0 && game.isInHand(id)) {
-    pickUp(id);
-    press = { x: ev.clientX, y: ev.clientY, moved: false, from: 'board' };
-    view.setHover(cell);
-    refresh();
-  }
+  // aim only -- the drop itself waits for the pointer to lift
+  press = { x: ev.clientX, y: ev.clientY, moved: false, from: 'board' };
+  view.setHover(view.cellAt(ev.clientX, ev.clientY));
+  mark();
 });
 
 addEventListener('pointermove', (ev) => {
@@ -334,9 +345,8 @@ addEventListener('pointerup', (ev) => {
   const gesture = press;
   press = null;
   if (!gesture || carry == null) return;
-  // A press on the board that never moved was a pick-up, not a drop -- placing
-  // on release would put the animal straight back where it came from.
-  if (gesture.from === 'board' && !gesture.moved) return;
+  // Off the board -- or still on the card that was just tapped -- puts nothing
+  // down. The animal stays in hand, and the next press on the board aims it.
   tryPlace(view.cellAt(ev.clientX, ev.clientY));
 });
 
@@ -346,7 +356,7 @@ addEventListener('pointercancel', () => {
 
 canvas.addEventListener('contextmenu', (ev) => {
   ev.preventDefault();
-  releaseCarry();
+  carry = null;
   refresh();
 });
 
@@ -355,29 +365,17 @@ addEventListener('keydown', (ev) => {
   const k = ev.key.toLowerCase();
   if (k === 'escape') {
     if (carry != null) {
-      releaseCarry();
+      carry = null;
       refresh();
     } else {
       closeSheets();
     }
-  } else if (k === 'u' || (k === 'z' && (ev.ctrlKey || ev.metaKey))) {
-    doUndo();
   } else if (k === 'n') {
     newGame();
   }
 });
 
 // --- ui --------------------------------------------------------------------
-
-function doUndo() {
-  if (!game) return;
-  releaseCarry(); // an animal in hand is mid-decision, not part of the history
-  if (!game.undo()) {
-    refresh();
-    return;
-  }
-  refresh();
-}
 
 function openSheet(sheet) {
   closeSheets();
@@ -399,7 +397,8 @@ ui.keyBtn.addEventListener('click', () => openSheet(ui.keySheet));
 ui.moreBtn.addEventListener('click', () => openSheet(ui.moreSheet));
 
 ui.newGame.addEventListener('click', () => newGame());
-ui.undo.addEventListener('click', doUndo);
+// same seed, so "back to the start" means this board again, not a fresh one
+ui.retry.addEventListener('click', () => newGame(seed));
 
 ui.board.addEventListener('change', () => {
   saveSettings();
@@ -410,16 +409,8 @@ ui.level.addEventListener('change', () => {
   newGame();
 });
 
-ui.clear.addEventListener('click', () => {
-  carry = null;
-  carryFrom = -1;
-  game.clearHand();
-  refresh();
-  closeSheets();
-});
 ui.reveal.addEventListener('click', () => {
   carry = null;
-  carryFrom = -1;
   game.reveal();
   buildDeal();
   refresh();

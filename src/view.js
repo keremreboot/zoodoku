@@ -81,6 +81,7 @@ export class View {
     this.hover = -1;
     this.spotlight = new Set();
     this.tokens = [];
+    this.misses = []; // { cell, t } squares that just cost a strike, fading from 1 to 0
   }
 
   setPuzzle(game) {
@@ -90,6 +91,7 @@ export class View {
     this.hover = -1;
     this.spotlight = new Set();
     this.tokens = game.animals.map(() => ({ s: 0 }));
+    this.misses = [];
     this.labels = this.placeLabels(game);
     this.resize();
   }
@@ -155,6 +157,12 @@ export class View {
     this.spotlight = new Set(ids);
   }
 
+  /** Flash a square red: something was dropped there and it was wrong. */
+  miss(cell) {
+    this.misses = this.misses.filter((m) => m.cell !== cell);
+    this.misses.push({ cell, t: 1 });
+  }
+
   update(dt) {
     if (!this.game) return false;
     const k = 1 - Math.pow(0.0007, dt);
@@ -170,7 +178,9 @@ export class View {
         tok.s = want;
       }
     });
-    return moving;
+    for (const m of this.misses) m.t -= dt / 0.9;
+    this.misses = this.misses.filter((m) => m.t > 0);
+    return moving || this.misses.length > 0;
   }
 
   // --- geometry ------------------------------------------------------------
@@ -215,6 +225,7 @@ export class View {
     this.drawGrid(ctx);
     this.drawLabels(ctx);
     this.drawHover(ctx);
+    this.drawMisses(ctx);
     this.drawTokens(ctx);
   }
 
@@ -361,28 +372,52 @@ export class View {
     ctx.restore();
   }
 
+  // Every animal on the board is on its own square -- a wrong drop never lands --
+  // so they are all drawn as settled. The dashed ring is kept for the ghost.
   drawTokens(ctx) {
     const S = this.S;
-    const broken = new Set();
-    for (const cl of this.game.brokenClues()) {
-      broken.add(cl.a);
-      if (cl.b >= 0) broken.add(cl.b);
-    }
     for (const a of this.game.animals) {
       const cell = this.game.pos[a.id];
       if (cell < 0) continue;
       const grow = this.tokens[a.id].s;
       this.token(ctx, a, this.px(this.R.col(cell)), this.py(this.R.row(cell)), S, {
         scale: 0.6 + 0.4 * grow,
-        dashed: this.game.isInHand(a.id),
-        wrong: broken.has(a.id),
         ringed: this.spotlight.has(a.id),
       });
     }
   }
 
+  /**
+   * A struck square flashes red and fades. The animal itself never lands there,
+   * so without this the only sign of a wrong drop would be off the board, in
+   * the strike count -- and the square you just tried is the thing to remember.
+   */
+  drawMisses(ctx) {
+    const S = this.S;
+    for (const m of this.misses) {
+      const x = this.px(this.R.col(m.cell));
+      const y = this.py(this.R.row(m.cell));
+      const inset = S * 0.2;
+      ctx.save();
+      ctx.globalAlpha = 0.45 * m.t;
+      ctx.fillStyle = PALETTE.red;
+      ctx.fillRect(x, y, S, S);
+      ctx.globalAlpha = Math.min(1, 1.6 * m.t);
+      ctx.strokeStyle = PALETTE.red;
+      ctx.lineWidth = Math.max(2, S * 0.08);
+      ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.moveTo(x + inset, y + inset);
+      ctx.lineTo(x + S - inset, y + S - inset);
+      ctx.moveTo(x + S - inset, y + inset);
+      ctx.lineTo(x + inset, y + S - inset);
+      ctx.stroke();
+      ctx.restore();
+    }
+  }
+
   token(ctx, animal, x, y, S, opts = {}) {
-    const { alpha = 1, scale = 1, dashed = false, wrong = false, ringed = false } = opts;
+    const { alpha = 1, scale = 1, dashed = false, ringed = false } = opts;
     const land = this.game.puzzle.lands[animal.land];
     const cx = x + S / 2;
     const cy = y + S / 2;
@@ -410,7 +445,7 @@ export class View {
     ctx.shadowColor = 'transparent';
 
     ctx.lineWidth = Math.max(1.6, S * 0.055);
-    ctx.strokeStyle = wrong ? PALETTE.red : land.ink;
+    ctx.strokeStyle = land.ink;
     if (dashed) ctx.setLineDash([S * 0.13, S * 0.1]);
     ctx.stroke();
     ctx.setLineDash([]);

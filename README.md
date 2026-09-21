@@ -16,11 +16,22 @@ Deals keep coming until every land has its animal.
 - A land holds one animal and no more, so the places a colour can still go run
   out as the board fills.
 - Every clue on the three cards must end up true.
+- A wrong square costs a strike, and the animal stays in hand. Five strikes on a
+  board and it starts over from the first deal — the same board, not a new one.
 
-A deal has exactly one arrangement its clues allow. So the moment your three sit
-consistently they are right, and the board settles them itself — there is
-nothing to submit, and no way to be told you were right about a board you were
-wrong about. Settled animals lock, because they were proved rather than guessed.
+A deal has exactly one arrangement its clues allow, so every placement is judged
+the moment it lands, against the answer. That is fair only because of how the
+deals are built: all three cards are on the table before anything is placed, so
+every wrong square could have been ruled out before you committed to it. A
+strike is never bad luck.
+
+Squares the board greys out — the wrong colour, or a land that already has its
+animal — are not wrong answers. Dropping on one is refused and costs nothing.
+
+Since nothing wrong ever lands, every animal on the board is exactly where it
+belongs. It locks the moment it is placed, and a deal moves on as soon as its
+third animal is down. There is no undo: the only thing it could take back is a
+strike.
 
 ## What the animals can say
 
@@ -104,10 +115,14 @@ Tap an animal, then tap a square — or drag it straight across. On a phone
 tap-then-tap is the one that works, because a fingertip covers the very square
 it is aiming at.
 
+An animal lands when you let go, not when you press. With a strike riding on
+every drop that matters: a thumb that comes down a square off can slide across
+before lifting, and one that slides off the board entirely puts nothing down and
+costs nothing.
+
 | Key | Action |
 | --- | --- |
 | `Esc` | put the carried animal back |
-| `U` | undo |
 | `N` | new board |
 
 Puzzles are seeded — the URL hash is the seed, so a link reproduces the exact
