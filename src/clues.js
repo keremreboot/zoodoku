@@ -47,11 +47,11 @@ export const BINARY = [
 
 /**
  * How reluctant the generator should be to use a kind, low is keener. Bare
- * coordinates sit far out at 24 so they are only ever reached for when nothing
- * else will separate two candidate squares -- but they are always in the pool,
- * and that is deliberate. Row plus column pins any square outright, so their
- * presence is what guarantees a deal can always be made unique, and the
- * generator therefore never has to fail.
+ * coordinates sit far out at 160 so they are only ever reached for when nothing
+ * else will separate two candidate squares. They are the last resort, and a
+ * necessary one: row plus column pins any square outright, with no reasoning
+ * between animals needed, so their presence is what guarantees any deal can be
+ * finished by elimination -- and the generator therefore never has to fail.
  */
 export const RANK = {
   touch: 0,
@@ -63,6 +63,7 @@ export const RANK = {
   zoneTouch: 2,
   zoneCore: 2,
   notTouch: 3,
+  inland: 3,
   zoneEdge: 3,
   above: 4,
   below: 4,
@@ -91,6 +92,7 @@ export const SIMPLE_KINDS = [
   'notTouch',
   'corners',
   'rim',
+  'inland',
   'corner',
   'sameRow',
   'sameCol',
@@ -243,15 +245,15 @@ function one(cl, ctx) {
   if (GROUPABLE[cl.k]) return say(cl.k, [other]);
   switch (cl.k) {
     case 'rim':
-      return 'I stand against the rim of the board.';
+      return 'I am on the rim of the board.';
     case 'inland':
-      return 'I keep clear of the rim of the board.';
+      return 'I am not on the rim of the board.';
     case 'corner':
-      return 'I stand in a corner of the board.';
+      return 'I am in a corner of the board.';
     case 'top':
-      return 'I am in the upper half of the board.';
+      return 'I am in the top half of the board.';
     case 'bottom':
-      return 'I am in the lower half of the board.';
+      return 'I am in the bottom half of the board.';
     case 'left':
       return 'I am in the left half of the board.';
     case 'right':
@@ -261,17 +263,17 @@ function one(cl, ctx) {
     case 'inColumn':
       return `I am in column ${cl.n + 1}, counting from the left.`;
     case 'zoneEdge':
-      return 'A square beside me belongs to another land.';
+      return 'I touch a square of another land.';
     case 'zoneCore':
-      return 'Every square beside me belongs to my own land.';
+      return 'I touch four squares, all of them in my own land.';
     case 'above':
-      return `I am higher up the board than ${other}.`;
+      return `I am in a higher row than ${other}.`;
     case 'below':
-      return `I am lower down the board than ${other}.`;
+      return `I am in a lower row than ${other}.`;
     case 'leftOf':
-      return `I am further left than ${other}.`;
+      return `I am in a column further left than ${other}.`;
     case 'rightOf':
-      return `I am further right than ${other}.`;
+      return `I am in a column further right than ${other}.`;
     case 'steps':
       return `${capital(other)} is exactly ${cl.n} steps away.`;
     default:
@@ -317,3 +319,86 @@ export function phrase(clues, ctx) {
     .map((c) => c.text)
     .join(' ');
 }
+
+/**
+ * Every clue the game can say, and exactly what it means -- shown to the player
+ * in the key, word for word.
+ *
+ * A deal that can be solved without a guess is only solvable without a guess if
+ * the player reads each sentence the way holds() evaluates it. A sentence with
+ * two fair readings is a guess of its own, however sound the logic behind it,
+ * so each meaning here is written against the code above, not against the
+ * sentence. tools/audit.mjs fails if any kind is missing from this list.
+ */
+export const GLOSSARY = [
+  {
+    kinds: ['touch'],
+    say: `I touch the fox.`,
+    means: `Our squares share an edge. Squares that meet only at a corner do not touch.`,
+  },
+  {
+    kinds: ['notTouch'],
+    say: `I do not touch the fox.`,
+    means: `Our squares do not share an edge. We may still meet corner to corner.`,
+  },
+  {
+    kinds: ['corners'],
+    say: `I meet the fox corner to corner.`,
+    means: `Our squares are diagonal neighbours: they share a corner and nothing else.`,
+  },
+  {
+    kinds: ['sameRow', 'sameCol'],
+    say: `I share a row (or column) with the fox.`,
+    means: `We are in the same row (or column), however far apart.`,
+  },
+  {
+    kinds: ['above', 'below'],
+    say: `I am in a higher (or lower) row than the fox.`,
+    means: `My row is nearer the top (or bottom) of the board than the fox's. We need not share a column.`,
+  },
+  {
+    kinds: ['leftOf', 'rightOf'],
+    say: `I am in a column further left (or right) than the fox.`,
+    means: `My column is nearer the left (or right) edge than the fox's. We need not share a row.`,
+  },
+  {
+    kinds: ['steps'],
+    say: `The fox is exactly 3 steps away.`,
+    means: `Counting moves up, down, left or right from my square to the fox's. A diagonal neighbour is 2 steps away.`,
+  },
+  {
+    kinds: ['zoneTouch'],
+    say: `My land borders the fox's land.`,
+    means: `Some square of my land shares an edge with some square of the fox's land.`,
+  },
+  {
+    kinds: ['rim', 'inland'],
+    say: `I am (or am not) on the rim of the board.`,
+    means: `The rim is the outermost ring of squares: the top and bottom rows and the left and right columns.`,
+  },
+  {
+    kinds: ['corner'],
+    say: `I am in a corner of the board.`,
+    means: `One of the four corner squares.`,
+  },
+  {
+    kinds: ['top', 'bottom', 'left', 'right'],
+    say: `I am in the top (bottom, left or right) half of the board.`,
+    means: `When the board has an odd number of rows, the middle row is in neither the top nor the bottom half — on a 9 × 9 board the top half is rows 1 to 4. The same goes for columns.`,
+  },
+  {
+    kinds: ['zoneEdge'],
+    say: `I touch a square of another land.`,
+    means: `At least one of the squares sharing an edge with mine is outside my land. The edge of the board does not count.`,
+  },
+  {
+    kinds: ['zoneCore'],
+    say: `I touch four squares, all of them in my own land.`,
+    means: `I am not on the rim, and all four squares sharing an edge with mine are in my land.`,
+  },
+  {
+    kinds: ['inRow', 'inColumn'],
+    say: `I am in row 4, counting from the top.`,
+    means: `Rows are counted from 1 at the top, columns from 1 at the left.`,
+  },
+];

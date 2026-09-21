@@ -44,22 +44,67 @@ me" would be true when it was dealt and false three deals later once a
 neighbour turned up. A fact about two fixed squares can never go stale, so every
 clue you have been shown is still true at the end.
 
-| | |
+This is the whole list. An animal never says anything else, and the game's Key
+shows the same list word for word:
+
+| The animal says | It means exactly |
 | --- | --- |
-| touch | the two squares share an edge; corners are said as *corner to corner* |
-| steps | moves up, down, left or right — a diagonal neighbour is two steps |
-| my land | the coloured area an animal stands in, not the colour itself |
-| halves | on an odd board the middle row belongs to neither half |
+| I touch the fox. | Our squares share an edge. Squares that meet only at a corner do not touch. |
+| I do not touch the fox. | Our squares do not share an edge. We may still meet corner to corner. |
+| I meet the fox corner to corner. | Diagonal neighbours: our squares share a corner and nothing else. |
+| I share a row (column) with the fox. | Same row (column), however far apart. |
+| I am in a higher (lower) row than the fox. | My row is nearer the top (bottom). We need not share a column. |
+| I am in a column further left (right) than the fox. | My column is nearer that edge. We need not share a row. |
+| The fox is exactly 3 steps away. | Moves up, down, left or right. A diagonal neighbour is 2 steps. |
+| My land borders the fox's land. | Some square of my land shares an edge with some square of the fox's. |
+| I am (not) on the rim of the board. | The rim is the outermost ring: top and bottom rows, left and right columns. |
+| I am in a corner of the board. | One of the four corner squares. |
+| I am in the top (bottom, left, right) half. | On an odd board the middle row (column) is in neither half. |
+| I touch a square of another land. | A square sharing an edge with mine is outside my land. The board's edge does not count. |
+| I touch four squares, all of them in my own land. | Not on the rim, and all four edge-neighbours are in my land. |
+| I am in row 4, counting from the top. | The last-resort clue. Across every audit so far it has never been needed. |
+
+Several clues about the same animal fold into one sentence, so "I touch the
+fish" and "I touch the lion" become *I touch both the fish and the lion*.
+
+Every meaning was written against the code that checks the clue, not against the
+sentence. A clue with two fair readings forces a guess however sound the logic
+behind it, so ambiguous wording breaks the no-guessing rule just as surely as a
+badly built deal does. The definitions live in `src/clues.js` beside the code
+that evaluates each clue, and the audit fails if any kind of clue is missing
+from the list.
 
 ## Difficulty
 
-Every level pins its deals with the same minimal set of clues. **Gentle** keeps
-to facts you can check by looking, and adds a clue or two more than the deal
-needs. **Sharp** shows the minimum and nothing else: take one clue away and the
-deal would have two answers.
+Every level pins its deals with a minimal set of clues. **Gentle** keeps to
+facts you can check by looking, and adds a clue or two more than the deal needs.
+**Sharp** shows the minimum and nothing else: take one clue away and the deal
+could no longer be worked out. No level ever needs a guess.
 
 Gentle being the *wordier* setting is not a mistake. Fewer clues means a tighter
 line of reasoning, not an easier one.
+
+## You never have to guess
+
+This is the rule every deal is built to, and it is stronger than having one
+answer. A deal can have exactly one arrangement its clues allow and still only
+be findable by supposing an animal is somewhere and following it through. With
+a strike on every wrong square, that supposition is a paid guess.
+
+So every deal has to be solvable by elimination alone:
+
+1. Each animal starts with every square it could legally take.
+2. Everything said about one animal is read together, and any square that breaks
+   it is crossed off.
+3. Everything said about the same two animals is read together too — *I share a
+   row with the rooster* and *the rooster is exactly 5 steps away* are one fact
+   about where the rooster stands. A square is crossed off when no square still
+   open to the other animal fits with it.
+4. Repeat until nothing more falls. Each animal must be left with one square.
+
+What that never allows is supposing: "if the crab were here, the rooster would
+be there, and then the owl could not…" chained through all three animals is the
+guessing the rule forbids. A deal that would need it is never dealt.
 
 ## How a board is built
 
@@ -67,18 +112,25 @@ The answer is chosen first — the lands are cut, and every animal is given its
 square — and only then is it worked out what they are allowed to say. Choosing
 the answer first is what makes the guarantee cheap: every clue in the pool is a
 true statement about the finished board by construction, so adding one can only
-narrow the field towards the answer and never away from it. Pinning a deal is
-then a set-cover problem over the deals you could otherwise have played, and
-greedy is more than good enough for it.
+narrow the player's options towards the answer and never away from it.
 
-The generator cannot fail. Row and column clues are always available at the last
-resort, and two different candidate deals must differ in some animal's row or
-column, so there is always a clue left that makes progress. What can fail is
-doing it *tidily* — inside the clue budget, using only the readable kinds — and
-that is what the retries are for. Concessions are made in order: a clue more,
-then a clue more again, then the level's choosiness about what may be said, and
-only at the very end a bare coordinate. Across 675 deals audited, the last rung
-was never reached.
+Clues are then chosen greedily. At each step the generator adds whichever clue
+lets elimination cross off the most, nudged towards readable kinds and away from
+repeating itself, and stops once elimination puts every animal on its square.
+A clue that would only help someone willing to suppose makes no progress by that
+measure, so it is never picked for that reason. Then each chosen clue is tested
+for whether the others can already do its work, and dropped if they can. One
+answer comes free: the answer always survives elimination, because every clue
+is true of it.
+
+The generator cannot fail. Row and column clues are available at the last
+resort, and a row plus a column pins a square outright with no reasoning between
+animals needed, so elimination can always be carried to the end. What can fail
+is doing it *tidily* — inside the clue budget, using only the readable kinds —
+and that is what the retries are for. Concessions are made in order: a clue
+more, then a clue more again, then the level's choosiness about what may be
+said, and only at the very end a bare coordinate. In every audit so far, the
+last rung has never been reached.
 
 ### Why there is no bigger board
 
@@ -147,15 +199,19 @@ works just as well).
 npm run audit
 ```
 
-The one promise this game makes is that every deal has exactly one answer, so
-that is what gets checked, and without trusting any of the code that made the
-promise. The audit rebuilds the field of legal deals from scratch for 180
-boards across every size and level and brute-forces each deal against its
-clues. It also checks that every clue is true of the answer and that every land
-is whole and fairly sized. It exits non-zero on any failure.
+The audit checks the promises this game makes, without trusting any of the code
+that made them. For 180 boards across every size and level it:
 
-Run it after touching `generate.js`, `clues.js` or `zones.js`. A new kind of
-clue worded one way and evaluated another is exactly the bug it exists to catch.
+- solves every deal by elimination with its **own** solver, separate from the
+  generator's, and fails any deal that would need a guess;
+- brute-forces every arrangement of the three animals and fails any deal with
+  more than one answer;
+- checks every clue is true of the answer, every land is whole and fairly sized,
+  and every kind of clue is explained in the key.
+
+It exits non-zero on any failure. Run it after touching `generate.js`,
+`deduce.js`, `clues.js` or `zones.js`. A new kind of clue worded one way and
+evaluated another is exactly the bug it exists to catch.
 `npm run audit:quick` checks one board size and prints a sample board, so you
 can read the clues as a player would.
 
@@ -165,6 +221,7 @@ can read the clues as a player would.
 - `src/zones.js` — cutting the grid into connected lands of equal size
 - `src/clues.js` — what an animal can say, and how it is worded
 - `src/generate.js` — choosing the answer, then the clues that pin it
+- `src/deduce.js` — solving a deal by elimination, the no-guessing rule itself
 - `src/state.js` — board state, placement, rule checking, undo
 - `src/view.js` — 2D canvas renderer
 - `src/main.js` — cards, pointer and panel handling

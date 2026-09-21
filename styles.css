@@ -554,10 +554,8 @@ button.ghost {
 }
 
 .gloss dt {
-  font-variant: small-caps;
-  letter-spacing: 0.08em;
-  font-weight: 700;
-  margin-top: 0.5rem;
+  font-style: italic;
+  margin-top: 0.55rem;
 }
 
 .gloss dd {

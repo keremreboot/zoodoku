@@ -11,7 +11,7 @@
 // Exits non-zero if any board fails, so it can gate a commit or a CI run.
 
 import { BOARDS, LEVELS, makePuzzle } from '../src/generate.js';
-import { holds, phrase } from '../src/clues.js';
+import { ALL_KINDS, BINARY, GLOSSARY, UNARY, holds, phrase } from '../src/clues.js';
 import { makeRules, mulberry32, neighbours } from '../src/util.js';
 
 function connected(R, cells) {
@@ -28,6 +28,73 @@ function connected(R, cells) {
     }
   }
   return seen.size === set.size;
+}
+
+/**
+ * Can this deal be worked out by elimination alone?
+ *
+ * Unique is not enough. A deal can have exactly one answer and still only be
+ * findable by supposing an animal is somewhere and following it through -- and
+ * with a strike on every wrong square, that supposition is a paid guess. The
+ * rule is that nobody should ever have to make one.
+ *
+ * So this plays the deal the way a player does. Every animal starts with every
+ * square it could legally take. Everything said about one animal is read
+ * together, and so is everything said about the same two animals -- "I share a
+ * row with the rooster" and "the rooster is exactly 5 steps away" are one fact
+ * about where the rooster is, and anyone reading the card takes them that way.
+ * A square is crossed off when it breaks what is said about its animal, or when
+ * no square still open to the other animal of a pair fits with it. That repeats
+ * until nothing more falls. If each animal is left with one square, the deal
+ * can be solved without a guess.
+ *
+ * What it will not do is suppose. Chaining "if the crab were here, the rooster
+ * would have to be there, and then the owl could not..." across all three is
+ * exactly the guessing the rule forbids, so a deal that needs it fails.
+ *
+ * Written separately from the generator's own solver on purpose, so that a bug
+ * in one cannot hide behind the same bug in the other.
+ */
+function deducible(p, deal, cand) {
+  const inDeal = new Set(deal.animals);
+  const pos = Int32Array.from(p.animals, (a) => (a.round < deal.round ? a.cell : -1));
+
+  // clues keyed by the animals of this deal they are about: one, or a pair
+  const about = new Map();
+  for (const cl of deal.clues) {
+    const ids = [cl.a, cl.b].filter((id) => inDeal.has(id)).sort((x, y) => x - y);
+    const key = ids.join(',');
+    if (!about.has(key)) about.set(key, { ids, clues: [] });
+    about.get(key).clues.push(cl);
+  }
+  const open = new Map(deal.animals.map((id, k) => [id, new Set(cand[k])]));
+  const allTrue = (clues) => clues.every((cl) => holds(cl, p.ctx, pos) === true);
+
+  let changed = true;
+  while (changed) {
+    changed = false;
+    for (const { ids, clues } of about.values()) {
+      const turns = ids.length === 1 ? [[ids[0], null]] : [ids, [ids[1], ids[0]]];
+      for (const [me, other] of turns) {
+        for (const x of [...open.get(me)]) {
+          pos[me] = x;
+          const fits = other == null
+            ? allTrue(clues)
+            : [...open.get(other)].some((y) => {
+                pos[other] = y;
+                return allTrue(clues);
+              });
+          if (other != null) pos[other] = -1;
+          if (!fits) {
+            open.get(me).delete(x);
+            changed = true;
+          }
+        }
+        pos[me] = -1;
+      }
+    }
+  }
+  return deal.animals.every((id) => open.get(id).size === 1);
 }
 
 function auditPuzzle(p) {
@@ -94,7 +161,10 @@ function auditPuzzle(p) {
       }
     }
     if (wins !== 1) problems.push(`deal ${r + 1}: ${wins} arrangements satisfy the clues, want 1`);
+    const fair = deducible(p, deal, cand);
+    if (!fair) problems.push(`deal ${r + 1}: unique, but needs a guess -- elimination alone stalls`);
     stats.push({
+      guess: !fair,
       clues: deal.clues.length,
       coords: deal.clues.some((cl) => cl.k === 'inRow' || cl.k === 'inColumn'),
     });
@@ -114,9 +184,22 @@ for (const key of [...boards.filter((b) => !BOARDS[b]), ...levels.filter((l) => 
 }
 
 let failed = 0;
+
+// Every kind of clue has to be explained to the player, or reading it is a
+// guess. The key shows GLOSSARY word for word, so it must cover them all.
+{
+  const kinds = [...new Set([...UNARY, ...BINARY, 'steps', 'inRow', 'inColumn', ...ALL_KINDS])];
+  const explained = new Set(GLOSSARY.flatMap((g) => g.kinds));
+  const unexplained = kinds.filter((k) => !explained.has(k));
+  if (unexplained.length) {
+    console.log(`  FAIL the key never explains: ${unexplained.join(', ')}`);
+    failed++;
+  }
+}
 let audited = 0;
 let deals = 0;
 let coordDeals = 0;
+let guessDeals = 0;
 const allClues = [];
 const allTimes = [];
 
@@ -128,6 +211,7 @@ for (const bk of boards) {
     const clues = [];
     const times = [];
     let coords = 0;
+    let guesses = 0;
     let count = 0;
 
     for (let s = 0; s < runs; s++) {
@@ -146,6 +230,7 @@ for (const bk of boards) {
         clues.push(s2.clues);
         count++;
         if (s2.coords) coords++;
+        if (s2.guess) guesses++;
       }
       if (problems.length) {
         failed++;
@@ -155,11 +240,13 @@ for (const bk of boards) {
     }
     deals += count;
     coordDeals += coords;
+    guessDeals += guesses;
     allClues.push(...clues);
     allTimes.push(...times);
     console.log(
       `${bk.padEnd(9)} ${lk.padEnd(9)} ${runs} boards, slowest ${Math.max(...times).toFixed(0).padStart(4)}ms,` +
-        ` clues/deal max ${Math.max(...clues)}, coordinate fallback in ${coords}/${count} deals`
+        ` clues/deal max ${Math.max(...clues)}, needs a guess ${guesses}/${count},` +
+        ` coordinate fallback ${coords}/${count}`
     );
   }
 }
@@ -169,7 +256,7 @@ console.log(
   `\n${audited} boards audited, ${failed} failed.` +
     ` Clues per deal: min ${Math.min(...allClues)}, avg ${avg(allClues).toFixed(2)}, max ${Math.max(...allClues)}.` +
     ` Build: avg ${avg(allTimes).toFixed(0)}ms, worst ${Math.max(...allTimes).toFixed(0)}ms.` +
-    ` Coordinate fallback in ${coordDeals} of ${deals} deals.`
+    ` Needs a guess: ${guessDeals} of ${deals} deals. Coordinate fallback: ${coordDeals} of ${deals}.`
 );
 
 if (process.argv.includes('--sample')) {

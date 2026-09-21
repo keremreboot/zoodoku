@@ -12,7 +12,7 @@
 // entirely, which puts nothing down and costs nothing.
 
 import { BOARDS, LEVELS, makePuzzle } from './generate.js';
-import { chunks } from './clues.js';
+import { GLOSSARY, chunks } from './clues.js';
 import { Game, MAX_STRIKES } from './state.js';
 import { View } from './view.js';
 import { makeRules, mulberry32 } from './util.js';
@@ -23,7 +23,7 @@ const view = new View(canvas);
 const ui = {};
 for (const id of [
   'seed', 'blurb', 'status', 'note', 'strikes', 'banner', 'lost', 'retry', 'deal',
-  'legend', 'board', 'level', 'newGame', 'reveal',
+  'legend', 'glossary', 'board', 'level', 'newGame', 'reveal',
   'keyBtn', 'moreBtn', 'keySheet', 'moreSheet', 'scrim',
 ]) {
   ui[id] = document.getElementById(id);
@@ -132,6 +132,23 @@ function buildLegend() {
 
       row.append(name, cast);
       return row;
+    })
+  );
+}
+
+/**
+ * The full list of clues, straight from clues.js, which is also where each one
+ * is evaluated -- so what the player is told a sentence means and what the game
+ * checks can only disagree if someone edits one line and not the one beside it.
+ */
+function buildGlossary() {
+  ui.glossary.replaceChildren(
+    ...GLOSSARY.flatMap((entry) => {
+      const say = document.createElement('dt');
+      say.textContent = entry.say;
+      const means = document.createElement('dd');
+      means.textContent = entry.means;
+      return [say, means];
     })
   );
 }
@@ -437,6 +454,7 @@ function frame(now) {
 }
 
 loadSettings();
+buildGlossary();
 const fromHash = parseInt(location.hash.slice(1), 10);
 newGame(Number.isFinite(fromHash) ? fromHash : undefined);
 requestAnimationFrame(frame);

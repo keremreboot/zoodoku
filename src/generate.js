@@ -1,21 +1,28 @@
-// Building a board that can only be solved one way.
+// Building a board that can be solved without a single guess.
+//
+// That is the rule, and it is stronger than having one answer. A deal can have
+// exactly one arrangement its clues allow and still only be findable by
+// supposing an animal is somewhere and following it through -- and with a
+// strike on every wrong square, that supposition is a paid guess. So a deal is
+// only accepted once deduce.js, working by elimination alone, gets every animal
+// down to one square. One answer comes free with that: the answer always
+// survives elimination, because every clue is true of it.
 //
 // The order of work is: cut the lands, decide where every animal ends up, and
 // only then work out what they are allowed to say. Choosing the answer first is
 // what makes the guarantee cheap -- every clue in the pool is a true statement
 // about the finished board by construction, so adding clues can only ever
-// narrow the field towards the answer and never away from it. Finding a clue
-// set that pins a deal is then a set-cover problem over the deals the player
-// could otherwise have played, and greedy is more than good enough for it.
+// narrow the player's options towards the answer and never away from it.
 //
-// The generator cannot fail. Row and column clues are always in the pool, and
-// any two different candidate deals must differ in some animal's row or column,
-// so there is always a clue left that makes progress. Greedy therefore always
-// walks the field down to one. What can fail is doing it *tidily* -- inside the
-// clue budget, using only the readable kinds -- and that is what the retries and
-// the escalating budget are for.
+// The generator cannot fail. Row and column clues are always available at the
+// last resort, and a row plus a column pins a square outright, with no
+// reasoning between animals needed at all -- so elimination can always be
+// carried to the end. What can fail is doing it *tidily* -- inside the clue
+// budget, using only the readable kinds -- and that is what the retries and the
+// escalating budget are for.
 
 import { ALL_KINDS, BINARY, RANK, SIMPLE_KINDS, UNARY, holds } from './clues.js';
+import { groupClues, isSolved, narrow, openness } from './deduce.js';
 import { pickLands, readAnimal } from './habitats.js';
 import { makeZones } from './zones.js';
 import { manhattan, range, shuffle } from './util.js';
@@ -41,9 +48,10 @@ export const BOARDS = {
 
 /**
  * Difficulty is about what is said, not how much is needed to say it. Every
- * level pins its deals with the same minimal set; gentle sticks to plain kinds
- * of fact and adds confirmation on top, sharp shows the minimum and nothing
- * else -- take one clue away and the deal has two answers.
+ * level pins its deals with a minimal set; gentle sticks to plain kinds of fact
+ * and adds confirmation on top, sharp shows the minimum and nothing else --
+ * take one clue away and the deal can no longer be worked out. No level ever
+ * needs a guess.
  */
 export const LEVELS = {
   gentle: { extra: 2, kinds: SIMPLE_KINDS, name: 'gentle' },
@@ -164,90 +172,6 @@ function placeTrio(R, zones, group, rng) {
   return shortlist[(rng() * shortlist.length) | 0].cells;
 }
 
-// --- the field of deals the player could play ------------------------------
-
-/**
- * Every combination of squares the three animals could legally take: any square
- * of any land of their own colour that no animal has settled in yet. This is
- * the player's view of the deal, and the clue set has to cut it down to one.
- */
-function enumerate(cand) {
-  const [c0, c1, c2] = cand;
-  const trip = new Int32Array(c0.length * c1.length * c2.length * 3);
-  let m = 0;
-  for (const a of c0) {
-    for (const b of c1) {
-      for (const c of c2) {
-        trip[m++] = a;
-        trip[m++] = b;
-        trip[m++] = c;
-      }
-    }
-  }
-  return trip;
-}
-
-function countKept(trip, cl, ctx, work, subs) {
-  let n = 0;
-  for (let t = 0; t < trip.length; t += 3) {
-    work[subs[0]] = trip[t];
-    work[subs[1]] = trip[t + 1];
-    work[subs[2]] = trip[t + 2];
-    if (holds(cl, ctx, work) === true) n++;
-  }
-  return n;
-}
-
-function keepOnly(trip, cl, ctx, work, subs) {
-  const out = new Int32Array(trip.length);
-  let m = 0;
-  for (let t = 0; t < trip.length; t += 3) {
-    work[subs[0]] = trip[t];
-    work[subs[1]] = trip[t + 1];
-    work[subs[2]] = trip[t + 2];
-    if (holds(cl, ctx, work) === true) {
-      out[m++] = trip[t];
-      out[m++] = trip[t + 1];
-      out[m++] = trip[t + 2];
-    }
-  }
-  return out.subarray(0, m);
-}
-
-/**
- * Survivor count without walking the whole field.
- *
- * A clue only ever constrains one animal, or two. On the untouched field the
- * rest of the deal is a free multiplier, so the same answer falls out of
- * checking one animal's squares -- or one pair's -- and multiplying back up.
- * Worth the special case: the untouched field is the largest it ever gets, and
- * the first pick is the one that has to look at every clue.
- */
-function projectedCount(cl, cand, ctx, work, subs) {
-  const ai = subs.indexOf(cl.a);
-  const bi = cl.b >= 0 ? subs.indexOf(cl.b) : -1;
-  const spread = (skip) =>
-    cand.reduce((p, list, x) => (skip.includes(x) ? p : p * list.length), 1);
-
-  if (bi < 0) {
-    let k = 0;
-    for (const cell of cand[ai]) {
-      work[cl.a] = cell;
-      if (holds(cl, ctx, work) === true) k++;
-    }
-    return k * spread([ai]);
-  }
-  let k = 0;
-  for (const ca of cand[ai]) {
-    work[cl.a] = ca;
-    for (const cb of cand[bi]) {
-      work[cl.b] = cb;
-      if (holds(cl, ctx, work) === true) k++;
-    }
-  }
-  return k * spread([ai, bi]);
-}
-
 // --- what the animals are allowed to say -----------------------------------
 
 function buildPool(ctx, subs, earlier, kinds, solution, coords) {
@@ -262,8 +186,9 @@ function buildPool(ctx, subs, earlier, kinds, solution, coords) {
     for (const k of UNARY) push({ k, a, b: -1, n: 0 });
     // Bare coordinates give the answer away rather than pose it, so they are
     // held back until a deal has been shown to need them. Row plus column pins
-    // any square outright, so once they are in the pool a deal can always be
-    // made unique -- which is what leaves the generator with no way to fail.
+    // any square outright, with no reasoning between animals needed, so once
+    // they are in the pool elimination can always finish a deal -- which is
+    // what leaves the generator with no way to fail.
     if (coords) {
       pool.push({ k: 'inRow', a, b: -1, n: ctx.R.row(solution[a]) });
       pool.push({ k: 'inColumn', a, b: -1, n: ctx.R.col(solution[a]) });
@@ -287,32 +212,35 @@ function buildPool(ctx, subs, earlier, kinds, solution, coords) {
 }
 
 /**
- * Cut the field down to the one deal that is the answer, and say as little as
- * possible doing it.
+ * Choose what a deal's animals say: enough for elimination alone to put every
+ * animal on its square, and as little more as possible.
  *
- * Greedy takes the clue that leaves fewest deals standing, nudged by how
- * readable its kind is and by how often that kind has already been used this
- * round -- a deal whose three clues are three different sorts of fact is a
- * better puzzle than one that lists three distances. Greedy overshoots, so
- * every chosen clue is then tested for whether the others already imply it,
- * and dropped if they do.
+ * Greedy takes the clue after which elimination leaves the fewest options
+ * open, nudged by how readable its kind is and by how often that kind has
+ * already been used -- a deal whose three clues are three different sorts of
+ * fact is a better puzzle than one that lists three distances. A clue that
+ * would only help someone willing to suppose -- one elimination cannot use yet
+ * -- makes no progress here and is passed over, which is the whole point.
+ * Greedy overshoots, so every chosen clue is then tested for whether the
+ * others can already do its work, and dropped if they can.
  */
-function chooseClues(trip, cand, pool, ctx, work, subs, level, maxClues, spent, rng) {
-  let live = trip;
+function chooseClues(cand, pool, ctx, work, subs, level, maxClues, spent, rng) {
+  let open = cand;
   const chosen = [];
 
-  while (live.length > 3) {
-    const total = live.length / 3;
-    const fresh = live === trip;
+  while (!isSolved(open)) {
+    const total = openness(open);
     let best = null;
     let bestScore = Infinity;
+    let bestOpen = null;
 
     for (const cl of pool) {
       if (chosen.some((c) => sameClue(c, cl))) continue;
-      const n = fresh
-        ? projectedCount(cl, cand, ctx, work, subs)
-        : countKept(live, cl, ctx, work, subs);
-      if (n >= total) continue; // says nothing we did not already know
+      // Elimination only ever removes, so starting from what the clues so far
+      // already left open reaches the same end as starting over, for less work.
+      const next = narrow(open, groupClues([...chosen, cl], subs), ctx, work, subs);
+      const n = openness(next);
+      if (n >= total) continue; // nothing elimination can do with it yet
       // Three different sorts of fact beat three distances, and a board that
       // opens every deal the same way has one idea in it -- so repeating a kind
       // costs, and leaning on it all game costs a little more.
@@ -332,10 +260,14 @@ function chooseClues(trip, cand, pool, ctx, work, subs, level, maxClues, spent, 
       if (score < bestScore) {
         bestScore = score;
         best = cl;
+        bestOpen = next;
       }
     }
-    if (!best) return null; // unreachable while row/column clues are in the pool
-    live = keepOnly(live, best, ctx, work, subs);
+    // Stalled: nothing left in the pool that elimination can use. Never happens
+    // once row and column clues are in the pool; before that, the caller moves
+    // on to another layout rather than accept a deal that needs a guess.
+    if (!best) return null;
+    open = bestOpen;
     chosen.push(best);
     if (chosen.length > maxClues + 3) return null;
   }
@@ -344,19 +276,15 @@ function chooseClues(trip, cand, pool, ctx, work, subs, level, maxClues, spent, 
   for (const cl of shuffle([...chosen], rng)) {
     if (kept.length < 2) break;
     const trial = kept.filter((c) => c !== cl);
-    let rest = trip;
-    for (const c of trial) {
-      if (rest.length === 3) break;
-      rest = keepOnly(rest, c, ctx, work, subs);
-    }
-    if (rest.length === 3) kept = trial;
+    if (isSolved(narrow(cand, groupClues(trial, subs), ctx, work, subs))) kept = trial;
   }
   if (kept.length > maxClues) return null;
 
   // Confirmation for the gentler levels: true things that were not needed. They
-  // cannot open a second answer -- every clue in the pool holds for the answer,
-  // so an extra one only ever removes rivals -- they just save the player from
-  // having to find the one line of reasoning that works.
+  // cannot open a second answer or make a guess necessary -- every clue in the
+  // pool holds for the answer, so an extra one only ever crosses off more --
+  // they just save the player from having to find the one line of reasoning
+  // that works.
   //
   // An extra has to earn its line, though. Anything an already-shown clue
   // implies is not help, it is padding, and a card that says "I stand in a
@@ -449,7 +377,6 @@ function attempt(R, rng, board, level, maxClues, tier) {
     });
 
     const earlier = animals.filter((a) => a.round < r).map((a) => a.id);
-    const field = enumerate(cand);
     // Concessions, worst last, and made one deal at a time so a single awkward
     // deal never coarsens the rest of the board. Widening the vocabulary is a
     // small thing to give up -- a gentle board saying "higher up than the fox"
@@ -458,7 +385,7 @@ function attempt(R, rng, board, level, maxClues, tier) {
     for (const vocab of VOCABULARIES.slice(0, tier + 1)) {
       const pool = buildPool(ctx, subs, earlier, vocab.kinds ?? level.kinds, solution, vocab.coords);
       const work = Int32Array.from(solution);
-      clues = chooseClues(field, cand, pool, ctx, work, subs, level, maxClues, spent, rng);
+      clues = chooseClues(cand, pool, ctx, work, subs, level, maxClues, spent, rng);
       if (clues) break;
     }
     if (!clues) return null;

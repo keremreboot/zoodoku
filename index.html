@@ -78,30 +78,14 @@
 
       <div id="legend" class="legend"></div>
 
-      <h3 class="sheet-sub">What the animals mean</h3>
-      <dl class="gloss">
-        <dt>touch</dt>
-        <dd>
-          The two squares share an edge. Corners do not count — an animal that
-          means corners says <i>corner to corner</i>.
-        </dd>
-        <dt>steps</dt>
-        <dd>
-          Moves up, down, left or right between the two squares. A diagonal
-          neighbour is two steps away.
-        </dd>
-        <dt>my land</dt>
-        <dd>
-          The coloured area an animal is standing in, not the colour itself.
-          Two lands border each other when some square of one shares an edge
-          with some square of the other.
-        </dd>
-        <dt>halves</dt>
-        <dd>
-          On a board with an odd number of rows, the middle row belongs to
-          neither half — and likewise the middle column.
-        </dd>
-      </dl>
+      <h3 class="sheet-sub">Every clue, and exactly what it means</h3>
+      <p class="sheet-note">
+        This is the whole list — an animal never says anything else. Every deal
+        can be solved from its three cards by crossing off squares until one is
+        left for each animal: no guessing, and no "suppose it were here". My
+        land is the coloured area an animal stands in, inside the heavy lines.
+      </p>
+      <dl class="gloss" id="glossary"></dl>
     </section>
 
     <section class="sheet" id="moreSheet" hidden aria-label="Options">
@@ -147,7 +131,8 @@
       <p class="sheet-note">
         <b>Gentle</b> sticks to plain facts and throws in a clue more than the
         deal strictly needs. <b>Sharp</b> tells you the bare minimum: take one
-        clue away and the deal would have two answers.
+        clue away and the deal could no longer be worked out. No level ever
+        needs a guess.
       </p>
       <p class="sheet-note">
         An animal only ever lands on its own square, so once it is down it is
