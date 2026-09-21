@@ -110,9 +110,10 @@ export class View {
   }
 
   /**
-   * One name per land, dropped on the square of that land nearest its middle.
-   * Squares with a border on two sides are avoided where possible so the text
-   * has room to sit without straddling a heavy line.
+   * Where each land's name goes: the squares of the land, best first -- nearest
+   * its middle, and avoiding squares with a border on two sides so the text has
+   * room to sit without straddling a heavy line. The name takes the best one no
+   * animal is standing on.
    */
   placeLabels(game) {
     const R = game.R;
@@ -127,19 +128,18 @@ export class View {
       }
       mr /= cells.length;
       mc /= cells.length;
-      let best = cells[0];
-      let bestScore = Infinity;
+      // Every square is ranked, not just the best kept: an animal may come to
+      // stand on the first choice, and the name must then move, never vanish.
       const marked = new Set(game.landmarks.map((l) => l.cell));
-      for (const i of cells) {
-        const open = neighbours(R, i).filter((n) => game.zones.zoneOf[n] === z).length;
-        const d =
-          Math.hypot(R.row(i) - mr, R.col(i) - mc) + (4 - open) * 0.45 + (marked.has(i) ? 99 : 0);
-        if (d < bestScore) {
-          bestScore = d;
-          best = i;
-        }
-      }
-      out.push({ zone: z, cell: best });
+      const places = cells
+        .filter((i) => !marked.has(i))
+        .map((i) => {
+          const open = neighbours(R, i).filter((n) => game.zones.zoneOf[n] === z).length;
+          return { i, d: Math.hypot(R.row(i) - mr, R.col(i) - mc) + (4 - open) * 0.45 };
+        })
+        .sort((x, y) => x.d - y.d)
+        .map((p) => p.i);
+      out.push({ zone: z, places });
     }
     return out;
   }
@@ -239,8 +239,8 @@ export class View {
 
     this.drawLands(ctx);
     this.drawGrid(ctx);
-    this.drawLabels(ctx);
     if (this.crossOut) this.drawDead(ctx);
+    this.drawLabels(ctx);
     this.drawLandmarks(ctx);
     this.drawHover(ctx);
     this.drawMisses(ctx);
@@ -334,30 +334,51 @@ export class View {
    * sit at a fixed size and centred on its square it spills over a heavy border
    * and reads as if it belonged to the land next door.
    */
+  //
+  // A land keeps its name after it has its animal. It is finished, but its
+  // colour is not: a later animal may say "I'm next to Desert", and on a
+  // crossed-out land the name is the only way a colourblind player can tell
+  // which colour it was. So a taken land's name is drawn over its crosses, on
+  // a small plate of the land's own colour so the lines do not cut the letters.
   drawLabels(ctx) {
     const R = this.R;
     const S = this.S;
     const zoneOf = this.game.zones.zoneOf;
     const base = Math.max(7, Math.min(13, S * 0.26));
 
-    // a land with its animal is finished, and crossed out: its name would only
-    // sit on top of the crosses and say nothing the player still needs
     const taken = new Set();
     if (this.crossOut) for (const p of this.game.pos) if (p >= 0) taken.add(zoneOf[p]);
 
     ctx.save();
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    for (const { zone, cell } of this.labels) {
-      if (this.game.pos.includes(cell) || taken.has(zone)) continue;
+    // A name spreads along the free squares of its row -- never under an
+    // animal or a landmark, which would hide half of it. Of the land's squares,
+    // best first, it takes the first with room for at least two squares of
+    // text; failing that, whichever has the most.
+    const blocked = (i) => this.game.pos.includes(i) || this.game.landmarkAt(i) != null;
+    const runAt = (i, zone) => {
+      const r = R.row(i);
+      let left = R.col(i);
+      let right = left;
+      while (left > 0 && zoneOf[R.idx(r, left - 1)] === zone && !blocked(R.idx(r, left - 1))) left--;
+      while (right < R.N - 1 && zoneOf[R.idx(r, right + 1)] === zone && !blocked(R.idx(r, right + 1))) right++;
+      return { r, left, len: right - left + 1 };
+    };
+
+    for (const { zone, places } of this.labels) {
+      let spot = null;
+      for (const i of places) {
+        if (blocked(i)) continue;
+        const run = runAt(i, zone);
+        if (!spot || run.len > spot.len) spot = run;
+        if (run.len >= 2) break;
+      }
+      if (!spot) continue; // every square of the land is covered
       const land = this.landOfZone(zone);
       const text = land.name.toUpperCase();
-      const r = R.row(cell);
-      let left = R.col(cell);
-      let right = left;
-      while (left > 0 && zoneOf[R.idx(r, left - 1)] === zone) left--;
-      while (right < R.N - 1 && zoneOf[R.idx(r, right + 1)] === zone) right++;
-      const run = (right - left + 1) * S;
+      const { r, left } = spot;
+      const run = spot.len * S;
 
       ctx.letterSpacing = `${(base * 0.16).toFixed(1)}px`;
       ctx.font = `600 ${base}px ${SERIF}`;
@@ -368,9 +389,20 @@ export class View {
         ctx.font = `600 ${size}px ${SERIF}`;
       }
 
+      const cx = this.px(left) + run / 2;
+      const cy = this.py(r) + S / 2;
+      if (taken.has(zone)) {
+        const w = Math.min(ctx.measureText(text).width + size * 0.9, run - 4);
+        const h = size * 1.55;
+        ctx.globalAlpha = 0.92;
+        ctx.fillStyle = land.tint;
+        ctx.fillRect(cx - w / 2, cy - h / 2, w, h);
+      }
       ctx.fillStyle = land.ink;
-      ctx.globalAlpha = this.carry != null && !this.isOpen(cell) ? 0.22 : 0.5;
-      ctx.fillText(text, this.px(left) + run / 2, this.py(r) + S / 2);
+      // never faded while an animal is carried: that is exactly when "I'm next
+      // to Desert" is being read, and the land itself is already dimmed
+      ctx.globalAlpha = 0.55;
+      ctx.fillText(text, cx, cy);
     }
     ctx.restore();
   }
