@@ -298,9 +298,25 @@ An animal lands when you let go, not when you press. With a strike riding on
 every drop that matters: a thumb that comes down a square off can slide across
 before lifting, and one that slides off the board puts nothing down.
 
+The marker is for the player's own working. Pick it up and a tap crosses a
+square out; a tap on a crossed square clears it; a drag carries whichever it
+started as across every square it passes. It is held in the same hand as an
+animal, so picking up one puts the other down. A crossed square is a note, not
+a rule — an animal can still be dropped on it.
+
+Two kinds of cross share the board, and they have to be told apart at a glance,
+because only one kind can be taken back. The board's own — every square of a
+land that already has its animal — are facts: faint, thin, ruler-straight, and
+out of the marker's reach. The player's are bold and slightly bowed, like pen.
+They are wiped each time an animal lands. A cross doesn't record which animal
+it was ruling out, so after a placement there is no telling which crosses still
+count — and keeping ones that no longer do is how a fair board starts to feel
+like a guess.
+
 | Key | Action |
 | --- | --- |
-| `Esc` | put the carried animal back |
+| `M` | pick up or put down the marker |
+| `Esc` | put down the carried animal, or the marker |
 | `N` | next level, once this one is done |
 
 ## Running it locally

@@ -95,6 +95,10 @@ main {
   cursor: pointer;
 }
 
+#stage.marking {
+  cursor: crosshair;
+}
+
 #banner {
   position: absolute;
   inset: auto 0 6%;
@@ -375,6 +379,12 @@ footer {
 .bar button {
   flex: 1 1 0;
   min-height: var(--tap);
+}
+
+/* the marker is a tool you hold, not a menu: it stays pressed while it is in hand */
+.bar .tool[aria-pressed='true'] {
+  background: var(--ink);
+  color: var(--card);
 }
 
 button,

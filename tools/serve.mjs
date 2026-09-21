@@ -11,7 +11,7 @@
 // Because it writes files, it listens on this machine only (127.0.0.1), never
 // on the network.
 //
-//   node tools/serve.mjs [root] [port]
+//   node tools/serve.mjs [root] [port]     (port also from $PORT; default 8137)
 
 import http from 'node:http';
 import fs from 'node:fs';
@@ -21,7 +21,7 @@ import { FORMAT, LEVEL_FILE, formatBook } from '../src/levels.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(process.argv[2] || path.join(here, '..'));
-const PORT = Number(process.argv[3] || 8137);
+const PORT = Number(process.argv[3] || process.env.PORT || 8137);
 const SNAPS = path.join(here, 'snaps');
 
 const TYPES = {

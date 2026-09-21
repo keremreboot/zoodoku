@@ -15,6 +15,16 @@
 // every wrong square that matters: a thumb can come down a square off, see the
 // ghost under it, and slide across before letting go -- or slide off the board
 // entirely, which puts nothing down and costs nothing.
+//
+// The marker is the other thing a hand can hold. With it up, a press on the
+// board crosses a square out, or clears it if it was crossed, and dragging on
+// carries the same stroke across every square passed over. Holding an animal
+// and holding the marker are one hand, so picking up either puts the other
+// down. The player's crosses are notes, not rules -- a crossed square still
+// takes an animal -- and they are wiped each time an animal lands: a cross
+// does not say which animal it was ruling out, so after a placement there is
+// no telling which still count. The board's own crosses, on lands that already
+// have their animal, are facts, and the marker cannot touch them.
 
 import { GLOSSARY, chunks } from './clues.js';
 import { TIERS } from './deduce.js';
@@ -29,7 +39,7 @@ const ui = {};
 for (const id of [
   'levelNo', 'blurb', 'status', 'note', 'strikes', 'banner', 'bannerTitle', 'bannerNote',
   'nextBtn', 'lost', 'retry', 'deal', 'legend', 'glossary', 'reveal', 'levelList',
-  'levelsBtn', 'keyBtn', 'moreBtn', 'keySheet', 'moreSheet', 'levelsSheet', 'scrim',
+  'levelsBtn', 'keyBtn', 'moreBtn', 'markBtn', 'keySheet', 'moreSheet', 'levelsSheet', 'scrim',
 ]) {
   ui[id] = document.getElementById(id);
 }
@@ -41,6 +51,9 @@ let playtest = false; // a candidate sent over from the editor, not a real level
 let revealed = false; // the answer was shown, so finishing does not count
 let game = null;
 let carry = null; // animal id in hand, or null
+let marking = false; // the marker is in hand instead of an animal
+const crosses = new Set(); // squares the player crossed out; the view draws them
+view.crosses = crosses;
 let press = null; // { x, y, moved, from } for the pointer gesture in progress
 let flash = null; // { text, tone } shown in place of the usual note for a moment
 let flashTimer = 0;
@@ -108,6 +121,8 @@ function play(lv, label) {
   revealed = false;
   game = new Game(puzzleFromLevel(lv));
   carry = null;
+  marking = false;
+  crosses.clear();
   press = null;
   flash = null;
   view.setPuzzle(game);
@@ -352,6 +367,12 @@ function refresh() {
   ui.banner.classList.toggle('show', game.isSolved());
   ui.lost.hidden = !game.isLost();
 
+  const over = game.isSolved() || game.isLost();
+  if (over) marking = false;
+  ui.markBtn.disabled = over;
+  ui.markBtn.setAttribute('aria-pressed', String(marking));
+  canvas.classList.toggle('marking', marking);
+
   if (carry == null) view.setHover(-1);
   view.setCarry(carry);
   const lit = spotlightFor(carry);
@@ -403,6 +424,7 @@ function tryPlace(cell) {
     return;
   }
 
+  crosses.clear();
   if (game.settle()) {
     if (game.isSolved()) {
       setFlash('the last land is settled');
@@ -415,6 +437,41 @@ function tryPlace(cell) {
   refresh();
 }
 
+// --- the marker --------------------------------------------------------------
+
+/** Squares the marker can touch: on the board, not a landmark, and not already crossed out by the board. */
+const crossable = (cell) => cell >= 0 && !game.landmarkAt(cell) && !game.isSpent(cell);
+
+function setMarking(on) {
+  if (!game || game.isSolved() || game.isLost()) on = false;
+  marking = on;
+  if (marking) carry = null;
+  refresh();
+}
+
+function setCross(cell, on) {
+  if (on) crosses.add(cell);
+  else crosses.delete(cell);
+  mark();
+}
+
+/** A press with the marker up: cross or clear the square, and say why when it will not take either. */
+function startStroke(ev) {
+  const cell = view.cellAt(ev.clientX, ev.clientY);
+  if (cell < 0) return;
+  if (!crossable(cell)) {
+    const landmark = game.landmarkAt(cell);
+    if (landmark) setFlash(`the ${landmark.name} is there`, '');
+    else if (game.animalAt(cell) < 0) setFlash('that land is taken', ''); // the board's cross, not yours
+    refresh();
+    return;
+  }
+  // the first square decides the stroke: crossing, or clearing
+  const paint = !crosses.has(cell);
+  press = { x: ev.clientX, y: ev.clientY, moved: false, from: 'marker', paint, last: cell };
+  setCross(cell, paint);
+}
+
 // --- pointer -----------------------------------------------------------------
 
 ui.deal.addEventListener('pointerdown', (ev) => {
@@ -423,6 +480,7 @@ ui.deal.addEventListener('pointerdown', (ev) => {
   ev.preventDefault();
   const id = Number(el.dataset.id);
   if (game.isPlaced(id)) return; // it is where it belongs, and stays there
+  marking = false;
   carry = id;
   press = { x: ev.clientX, y: ev.clientY, moved: false, from: 'card' };
   view.setHover(-1);
@@ -430,7 +488,13 @@ ui.deal.addEventListener('pointerdown', (ev) => {
 });
 
 canvas.addEventListener('pointerdown', (ev) => {
-  if (!game || ev.button !== 0 || carry == null || game.isLost()) return;
+  if (!game || ev.button !== 0 || game.isLost()) return;
+  if (marking) {
+    ev.preventDefault();
+    startStroke(ev);
+    return;
+  }
+  if (carry == null) return;
   ev.preventDefault();
   // aim only -- the drop itself waits for the pointer to lift
   press = { x: ev.clientX, y: ev.clientY, moved: false, from: 'board' };
@@ -441,6 +505,14 @@ canvas.addEventListener('pointerdown', (ev) => {
 addEventListener('pointermove', (ev) => {
   if (press && Math.abs(ev.clientX - press.x) + Math.abs(ev.clientY - press.y) > 8) {
     press.moved = true;
+  }
+  if (press?.from === 'marker') {
+    const cell = view.cellAt(ev.clientX, ev.clientY);
+    if (cell !== press.last) {
+      press.last = cell;
+      if (crossable(cell)) setCross(cell, press.paint);
+    }
+    return;
   }
   if (carry == null) return;
   const cell = view.cellAt(ev.clientX, ev.clientY);
@@ -481,11 +553,15 @@ addEventListener('keydown', (ev) => {
     if (carry != null) {
       carry = null;
       refresh();
+    } else if (marking) {
+      setMarking(false);
     } else {
       closeSheets();
     }
   } else if (k === 'n') {
     nextLevel();
+  } else if (k === 'm') {
+    setMarking(!marking);
   }
 });
 
@@ -513,10 +589,12 @@ ui.moreBtn.addEventListener('click', () => openSheet(ui.moreSheet));
 ui.levelsBtn.addEventListener('click', () => openSheet(ui.levelsSheet));
 ui.nextBtn.addEventListener('click', nextLevel);
 ui.retry.addEventListener('click', restart);
+ui.markBtn.addEventListener('click', () => setMarking(!marking));
 
 ui.reveal.addEventListener('click', () => {
   if (!game) return;
   carry = null;
+  crosses.clear();
   revealed = true;
   game.reveal();
   onSolved();

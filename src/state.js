@@ -72,6 +72,11 @@ export class Game {
     return this.landmarks.find((l) => l.cell === cell) ?? null;
   }
 
+  /** In a land that already has its animal, so nothing more will ever stand here. The board crosses these out itself. */
+  isSpent(cell) {
+    return this.occupantOfZone(this.zones.zoneOf[cell]) !== NOWHERE;
+  }
+
   /** Allowed by the mechanical rules -- right colour, free land, no landmark. Says nothing about right or wrong. */
   canPlace(id, cell) {
     if (cell < 0 || cell >= this.R.cells) return false;
