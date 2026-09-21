@@ -1,4 +1,9 @@
-// Glue: puzzle -> state -> view, plus the cards, the pointer and the sheets.
+// Glue: level -> state -> view, plus the cards, the pointer and the sheets.
+//
+// The game plays curated levels, in order, from levels/levels.json. It never
+// generates a board itself: every level was made in the editor, looked at by a
+// person and locked in, and the audit checks each one can be solved without a
+// guess. Finishing a level opens the next.
 //
 // An animal is carried rather than dragged. Pressing a card picks it up and it
 // stays up until it lands, which means the same code serves a drag across the
@@ -11,26 +16,30 @@
 // ghost under it, and slide across before letting go -- or slide off the board
 // entirely, which puts nothing down and costs nothing.
 
-import { BOARDS, LEVELS, makePuzzle } from './generate.js';
 import { GLOSSARY, chunks } from './clues.js';
+import { TIERS } from './deduce.js';
+import { PLAYTEST_KEY, loadLevels, puzzleFromLevel } from './levels.js';
 import { Game, MAX_STRIKES } from './state.js';
 import { View } from './view.js';
-import { makeRules, mulberry32 } from './util.js';
 
 const canvas = document.getElementById('stage');
 const view = new View(canvas);
 
 const ui = {};
 for (const id of [
-  'seed', 'blurb', 'status', 'note', 'strikes', 'banner', 'lost', 'retry', 'deal',
-  'legend', 'glossary', 'board', 'level', 'newGame', 'reveal',
-  'keyBtn', 'moreBtn', 'keySheet', 'moreSheet', 'scrim',
+  'levelNo', 'blurb', 'status', 'note', 'strikes', 'banner', 'bannerTitle', 'bannerNote',
+  'nextBtn', 'lost', 'retry', 'deal', 'legend', 'glossary', 'reveal', 'levelList',
+  'levelsBtn', 'keyBtn', 'moreBtn', 'keySheet', 'moreSheet', 'levelsSheet', 'scrim',
 ]) {
   ui[id] = document.getElementById(id);
 }
 
+let book = { levels: [] };
+let index = 0; // position in book.levels of the level being played
+let level = null; // the level being played
+let playtest = false; // a candidate sent over from the editor, not a real level
+let revealed = false; // the answer was shown, so finishing does not count
 let game = null;
-let seed = 0; // of the board in play, so losing can deal the very same one again
 let carry = null; // animal id in hand, or null
 let press = null; // { x, y, moved, from } for the pointer gesture in progress
 let flash = null; // { text, tone } shown in place of the usual note for a moment
@@ -41,30 +50,38 @@ const mark = () => {
   dirty = true;
 };
 
-// --- settings --------------------------------------------------------------
+// --- progress ----------------------------------------------------------------
+//
+// Kept by level id rather than position, so levels the editor moves around or
+// inserts later do not hand a player credit for the wrong one.
 
-const SETTINGS_KEY = 'zoodoku.settings';
+const PROGRESS_KEY = 'zoodoku.progress';
 
-function loadSettings() {
-  let saved = {};
+let solved = new Set();
+
+function loadProgress() {
   try {
-    saved = JSON.parse(localStorage.getItem(SETTINGS_KEY)) || {};
+    solved = new Set(JSON.parse(localStorage.getItem(PROGRESS_KEY))?.solved ?? []);
   } catch {
-    saved = {};
+    solved = new Set();
   }
-  if (saved.board && BOARDS[saved.board]) ui.board.value = saved.board;
-  if (saved.level && LEVELS[saved.level]) ui.level.value = saved.level;
 }
 
-function saveSettings() {
+function saveProgress() {
   try {
-    localStorage.setItem(
-      SETTINGS_KEY,
-      JSON.stringify({ board: ui.board.value, level: ui.level.value })
-    );
+    localStorage.setItem(PROGRESS_KEY, JSON.stringify({ solved: [...solved] }));
   } catch {
-    /* private mode -- settings just do not persist */
+    /* private mode -- progress just does not persist */
   }
+}
+
+const isSolvedLevel = (k) => solved.has(book.levels[k]?.id);
+const isOpenLevel = (k) => k === 0 || isSolvedLevel(k) || isSolvedLevel(k - 1);
+
+/** Where to pick up: the first level not yet finished, or the last one. */
+function resumeAt() {
+  const k = book.levels.findIndex((_, i) => !isSolvedLevel(i));
+  return k < 0 ? book.levels.length - 1 : k;
 }
 
 function setFlash(text, tone = 'good') {
@@ -76,40 +93,59 @@ function setFlash(text, tone = 'good') {
   }, 2200);
 }
 
-// --- game lifecycle --------------------------------------------------------
+// --- playing a level ---------------------------------------------------------
 
-function newGame(want = (Math.random() * 1e9) | 0) {
-  const board = BOARDS[ui.board.value] ?? BOARDS.standard;
-  const level = LEVELS[ui.level.value] ?? LEVELS.standard;
-  const R = makeRules(board.N);
+function startLevel(k) {
+  if (!book.levels[k] || !isOpenLevel(k)) return;
+  index = k;
+  playtest = false;
+  history.replaceState(null, '', `#${k + 1}`);
+  play(book.levels[k], `Level ${k + 1}`);
+}
 
-  let used = want >>> 0;
-  let puzzle = null;
-  for (let bump = 0; bump < 8 && !puzzle; bump++) {
-    used = (want + bump * 7919) >>> 0;
-    puzzle = makePuzzle(R, mulberry32(used), board, level);
-  }
-  if (!puzzle) {
-    ui.note.textContent = 'could not build that board';
-    ui.note.className = 'warn';
-    return;
-  }
-
-  game = new Game(puzzle);
-  seed = used;
+function play(lv, label) {
+  level = lv;
+  revealed = false;
+  game = new Game(puzzleFromLevel(lv));
   carry = null;
   press = null;
   flash = null;
   view.setPuzzle(game);
-  ui.seed.textContent = `No. ${String(used).slice(-6).padStart(6, '0')}`;
-  ui.blurb.textContent = puzzle.lands.map((l) => l.name).join(' · ');
-  history.replaceState(null, '', `#${used}`);
+  ui.levelNo.textContent = label;
+  ui.blurb.textContent = game.puzzle.lands.map((l) => l.name).join(' · ');
   buildLegend();
   buildDeal();
+  buildLevelList();
   refresh();
 }
 
-/** The key lists only the animals this board actually cast, in dealing order. */
+function restart() {
+  play(level, ui.levelNo.textContent);
+}
+
+function onSolved() {
+  if (playtest) {
+    ui.bannerTitle.textContent = 'Playtest solved';
+    ui.bannerNote.textContent = 'Back to the editor to lock it in.';
+    ui.nextBtn.hidden = true;
+    return;
+  }
+  if (!revealed) {
+    solved.add(level.id);
+    saveProgress();
+    buildLevelList();
+  }
+  const last = index >= book.levels.length - 1;
+  ui.bannerTitle.textContent = revealed ? 'The answer' : `Level ${index + 1} complete`;
+  ui.bannerNote.textContent = revealed
+    ? 'Shown, not solved — the next level stays locked.'
+    : last
+      ? 'That was the last level, for now.'
+      : 'Each animal exactly where its own words put it.';
+  ui.nextBtn.hidden = revealed || last;
+}
+
+/** The key lists only the animals this level cast, in dealing order. */
 function buildLegend() {
   ui.legend.replaceChildren(
     ...game.puzzle.lands.map((land, h) => {
@@ -149,6 +185,38 @@ function buildGlossary() {
       const means = document.createElement('dd');
       means.textContent = entry.means;
       return [say, means];
+    })
+  );
+}
+
+function buildLevelList() {
+  ui.levelList.replaceChildren(
+    ...book.levels.map((lv, k) => {
+      const li = document.createElement('li');
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'level-row';
+      btn.disabled = !isOpenLevel(k);
+      btn.classList.toggle('current', !playtest && k === index);
+      btn.classList.toggle('done', isSolvedLevel(k));
+
+      const num = document.createElement('span');
+      num.className = 'level-num';
+      num.textContent = String(k + 1);
+      const what = document.createElement('span');
+      what.className = 'level-what';
+      what.textContent = `${lv.N} × ${lv.N} · ${lv.deals.length} deal${lv.deals.length === 1 ? '' : 's'} · ${TIERS[lv.spec.tier].name.toLowerCase()}`;
+      const tick = document.createElement('span');
+      tick.className = 'level-mark';
+      tick.textContent = isSolvedLevel(k) ? '✓' : isOpenLevel(k) ? '' : '🔒';
+
+      btn.append(num, what, tick);
+      btn.addEventListener('click', () => {
+        startLevel(k);
+        closeSheets();
+      });
+      li.append(btn);
+      return li;
     })
   );
 }
@@ -193,7 +261,7 @@ function cardFor(animal) {
   if (!el._bits.length) {
     const quiet = document.createElement('span');
     quiet.className = 'silent';
-    quiet.textContent = 'I say nothing — place me by what the others say.';
+    quiet.textContent = 'I say nothing — the others place me.';
     rule.append(quiet);
   } else {
     el._bits.forEach((span, k) => {
@@ -276,9 +344,9 @@ function refresh() {
 
 /**
  * Why a square refused the animal, said as a hint rather than a telling-off.
- * Kept short on purpose: the note shares one line with the deal count and the
- * strike pips, and on a phone a longer one wraps -- which shrinks the board
- * under the player's thumb at the exact moment they are aiming.
+ * Kept short: the note shares one line with the deal count and the strike
+ * pips, and on a phone a longer one wraps -- which shrinks the board under the
+ * player's thumb at the exact moment they are aiming.
  */
 function refusal(id, cell) {
   const animal = game.animals[id];
@@ -317,13 +385,18 @@ function tryPlace(cell) {
   }
 
   if (game.settle()) {
-    setFlash(game.isSolved() ? 'the last land is settled' : 'that deal is settled');
+    if (game.isSolved()) {
+      setFlash('the last land is settled');
+      onSolved();
+    } else {
+      setFlash('that deal is settled');
+    }
     buildDeal();
   }
   refresh();
 }
 
-// --- pointer ---------------------------------------------------------------
+// --- pointer -----------------------------------------------------------------
 
 ui.deal.addEventListener('pointerdown', (ev) => {
   const el = ev.target.closest?.('.card');
@@ -377,6 +450,11 @@ canvas.addEventListener('contextmenu', (ev) => {
   refresh();
 });
 
+function nextLevel() {
+  if (playtest || !game?.isSolved() || revealed) return;
+  if (index + 1 < book.levels.length) startLevel(index + 1);
+}
+
 addEventListener('keydown', (ev) => {
   if (ev.target instanceof HTMLSelectElement || ev.target instanceof HTMLInputElement) return;
   const k = ev.key.toLowerCase();
@@ -388,11 +466,11 @@ addEventListener('keydown', (ev) => {
       closeSheets();
     }
   } else if (k === 'n') {
-    newGame();
+    nextLevel();
   }
 });
 
-// --- ui --------------------------------------------------------------------
+// --- ui ----------------------------------------------------------------------
 
 function openSheet(sheet) {
   closeSheets();
@@ -403,6 +481,7 @@ function openSheet(sheet) {
 function closeSheets() {
   ui.keySheet.hidden = true;
   ui.moreSheet.hidden = true;
+  ui.levelsSheet.hidden = true;
   ui.scrim.hidden = true;
 }
 
@@ -412,23 +491,16 @@ for (const btn of document.querySelectorAll('[data-close]')) {
 }
 ui.keyBtn.addEventListener('click', () => openSheet(ui.keySheet));
 ui.moreBtn.addEventListener('click', () => openSheet(ui.moreSheet));
-
-ui.newGame.addEventListener('click', () => newGame());
-// same seed, so "back to the start" means this board again, not a fresh one
-ui.retry.addEventListener('click', () => newGame(seed));
-
-ui.board.addEventListener('change', () => {
-  saveSettings();
-  newGame();
-});
-ui.level.addEventListener('change', () => {
-  saveSettings();
-  newGame();
-});
+ui.levelsBtn.addEventListener('click', () => openSheet(ui.levelsSheet));
+ui.nextBtn.addEventListener('click', nextLevel);
+ui.retry.addEventListener('click', restart);
 
 ui.reveal.addEventListener('click', () => {
+  if (!game) return;
   carry = null;
+  revealed = true;
   game.reveal();
+  onSolved();
   buildDeal();
   refresh();
   closeSheets();
@@ -439,7 +511,7 @@ new ResizeObserver(() => {
   mark();
 }).observe(canvas);
 
-// --- loop ------------------------------------------------------------------
+// --- loop --------------------------------------------------------------------
 
 let last = performance.now();
 function frame(now) {
@@ -453,10 +525,47 @@ function frame(now) {
   requestAnimationFrame(frame);
 }
 
-loadSettings();
-buildGlossary();
-const fromHash = parseInt(location.hash.slice(1), 10);
-newGame(Number.isFinite(fromHash) ? fromHash : undefined);
+function showEmpty(message) {
+  ui.levelNo.textContent = 'Zoodoku';
+  ui.blurb.textContent = '';
+  ui.status.textContent = message;
+  ui.note.textContent = '';
+  ui.deal.replaceChildren();
+}
+
+async function boot() {
+  buildGlossary();
+  loadProgress();
+
+  // The editor hands a candidate over through localStorage and opens #playtest.
+  if (location.hash === '#playtest') {
+    try {
+      const candidate = JSON.parse(localStorage.getItem(PLAYTEST_KEY));
+      if (candidate) {
+        playtest = true;
+        play(candidate, 'Playtest');
+        return;
+      }
+    } catch {
+      /* fall through to the real levels */
+    }
+  }
+
+  try {
+    book = await loadLevels();
+  } catch (e) {
+    showEmpty(`could not load the levels: ${e.message}`);
+    return;
+  }
+  if (!book.levels.length) {
+    showEmpty('no levels yet — make some in the level editor');
+    return;
+  }
+  const asked = parseInt(location.hash.slice(1), 10) - 1;
+  startLevel(Number.isFinite(asked) && isOpenLevel(asked) ? asked : resumeAt());
+}
+
+boot();
 requestAnimationFrame(frame);
 
 // handy while prototyping: zoodoku.game / .view from the console
@@ -464,6 +573,9 @@ window.zoodoku = {
   get game() {
     return game;
   },
+  get book() {
+    return book;
+  },
   view,
-  newGame,
+  startLevel,
 };

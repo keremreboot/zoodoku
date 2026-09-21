@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#e9e4d8" />
+    <title>Zoodoku level editor</title>
+    <link
+      rel="icon"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ctext y='26' font-size='26'%3E%F0%9F%A6%81%3C/text%3E%3C/svg%3E"
+    />
+    <link rel="stylesheet" href="./styles.css" />
+    <link rel="stylesheet" href="./editor.css" />
+  </head>
+  <body class="editor">
+    <header class="masthead">
+      <span class="dateline left">Level editor</span>
+      <h1>Zoodoku</h1>
+      <span class="dateline right"><a href="./index.html">Play the levels →</a></span>
+    </header>
+    <div class="rules"></div>
+
+    <div class="workbench">
+      <!-- settings ------------------------------------------------------- -->
+      <section class="panel controls" aria-label="Level settings">
+        <h2>Settings</h2>
+
+        <div class="making">
+          <label for="slot">Making level</label>
+          <select id="slot"></select>
+          <button id="suggest" class="small" title="Set the sliders to the funnel's suggestion for this position">
+            Funnel settings
+          </button>
+        </div>
+
+        <div class="knob">
+          <label for="N">Board <output id="NOut"></output></label>
+          <input type="range" id="N" min="5" max="9" step="1" />
+        </div>
+        <div class="knob">
+          <label for="lands">Lands <output id="landsOut"></output></label>
+          <input type="range" id="lands" min="0" max="0" step="1" />
+        </div>
+        <div class="knob">
+          <label for="tier">Clues lean on each other <output id="tierOut"></output></label>
+          <input type="range" id="tier" min="0" max="2" step="1" />
+          <p class="hint" id="tierHint"></p>
+        </div>
+        <div class="knob">
+          <label for="vocab">Clue vocabulary <output id="vocabOut"></output></label>
+          <input type="range" id="vocab" min="0" max="2" step="1" />
+          <p class="hint" id="vocabHint"></p>
+        </div>
+        <div class="knob">
+          <label for="perCard">Most sentences on a card <output id="perCardOut"></output></label>
+          <input type="range" id="perCard" min="1" max="3" step="1" />
+        </div>
+        <div class="knob">
+          <label for="spare">Spare clues per deal <output id="spareOut"></output></label>
+          <input type="range" id="spare" min="0" max="2" step="1" />
+          <p class="hint">Extra true facts the deal didn't need. They make it easier.</p>
+        </div>
+        <label class="tick"
+          ><input type="checkbox" id="coords" /> Allow “I'm in row 3” clues</label
+        >
+
+        <div class="actions">
+          <button id="generate" class="primary">Generate</button>
+          <button id="playtest" disabled>Playtest</button>
+          <button id="lock" disabled>Lock in</button>
+        </div>
+        <p class="status" id="genStatus" role="status"></p>
+      </section>
+
+      <!-- preview -------------------------------------------------------- -->
+      <section class="panel preview" aria-label="Preview">
+        <div class="preview-head">
+          <h2 id="previewTitle">Preview</h2>
+          <label class="tick"><input type="checkbox" id="answers" checked /> Show answers</label>
+        </div>
+        <div class="board-wrap"><canvas id="stage"></canvas></div>
+        <p class="stats" id="stats"></p>
+        <div class="deals" id="deals"></div>
+      </section>
+
+      <!-- the level list ------------------------------------------------- -->
+      <section class="panel book" aria-label="Locked levels">
+        <h2>Levels <span class="count" id="count"></span></h2>
+        <div class="funnel" id="funnel" aria-label="Difficulty by level"></div>
+        <ol class="book-list" id="book"></ol>
+        <p class="status" id="saveStatus" role="status"></p>
+        <button id="download" class="small" hidden>Download levels.json</button>
+      </section>
+    </div>
+
+    <script type="module" src="./src/editor.js"></script>
+  </body>
+</html>

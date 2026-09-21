@@ -114,6 +114,15 @@ export function makeZones(R, count, rng, rounds = 90) {
     }
   }
 
+  return describeZones(R, zoneOf, count);
+}
+
+/**
+ * Everything else the game asks about lands, worked out from which land each
+ * square is in. Shared by fresh boards and by locked levels, which store only
+ * that one array.
+ */
+export function describeZones(R, zoneOf, count) {
   const zoneCells = Array.from({ length: count }, () => []);
   for (let i = 0; i < R.cells; i++) zoneCells[zoneOf[i]].push(i);
 

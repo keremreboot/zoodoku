@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "start": "node tools/serve.mjs",
-    "audit": "node tools/audit.mjs all all 20",
-    "audit:quick": "node tools/audit.mjs standard standard 8 --sample"
+    "audit": "node tools/audit.mjs 20",
+    "audit:quick": "node tools/audit.mjs 3 --sample"
   }
 }

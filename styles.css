@@ -116,6 +116,18 @@ main {
 #banner.show {
   opacity: 1;
   transform: none;
+  pointer-events: auto;
+}
+
+#banner button {
+  display: block;
+  margin: 0.5rem auto 0;
+  min-height: var(--tap);
+  min-width: 10rem;
+}
+
+#banner button[hidden] {
+  display: none;
 }
 
 #banner strong {
@@ -513,6 +525,53 @@ button.ghost {
 .sheet-actions button {
   flex: 1 1 0;
   min-height: var(--tap);
+}
+
+/* --- level list --------------------------------------------------------- */
+
+.level-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.level-row {
+  display: grid;
+  grid-template-columns: 2.2rem 1fr auto;
+  align-items: center;
+  gap: 0.6rem;
+  width: 100%;
+  min-height: var(--tap);
+  text-align: left;
+  text-transform: none;
+  letter-spacing: normal;
+  font-size: 0.85rem;
+}
+
+.level-row .level-num {
+  font-weight: 700;
+  font-size: 1rem;
+  text-align: center;
+}
+
+.level-row .level-what {
+  color: var(--muted);
+}
+
+.level-row .level-mark {
+  color: var(--green);
+  font-weight: 700;
+}
+
+.level-row.current {
+  box-shadow: inset 4px 0 0 var(--ink);
+}
+
+.level-row.done .level-num {
+  color: var(--green);
 }
 
 /* --- legend ------------------------------------------------------------- */

@@ -1,18 +1,37 @@
-// Independent audit of the generator.
+// Independent audit of the levels, and of the generator that makes them.
 //
-// The generator promises that every deal has exactly one answer. This checks
-// that promise without trusting any of the machinery that made it: the field of
-// legal deals is rebuilt from scratch and brute-forced, clue by clue. Run it
-// after any change to generate.js, clues.js or zones.js -- a new clue kind that
-// is worded one way and evaluated another is exactly the bug this catches.
+// The game makes promises, and this checks them without trusting any of the
+// code that made them:
 //
-//   node tools/audit.mjs [board|all] [level|all] [boards-per-combo]
+//   - every deal can be solved without a guess, at the tier its level promises
+//     (alone / in turn / together), by a solver written separately from the
+//     generator's own, so a bug in one cannot hide behind the same bug in the
+//     other;
+//   - every deal has exactly one answer, by trying every arrangement;
+//   - every clue is true of the answer, and is a kind the key explains;
+//   - every land is whole and fairly sized, one animal to a land, right colour.
 //
-// Exits non-zero if any board fails, so it can gate a commit or a CI run.
+// It audits two things. levels/levels.json, because those are the levels
+// players actually get -- locked, so a generator change cannot fix or break
+// them, and only this catches it if one was ever wrong. And a sweep of fresh
+// boards along the difficulty funnel, because the editor makes new levels with
+// today's generator.
+//
+//   node tools/audit.mjs [boards-per-funnel-step] [--sample]
+//
+// Exits non-zero if anything fails, so it can gate a commit or a CI run.
 
-import { BOARDS, LEVELS, makePuzzle } from '../src/generate.js';
-import { ALL_KINDS, BINARY, GLOSSARY, UNARY, holds, phrase } from '../src/clues.js';
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { makeLevel } from '../src/generate.js';
+import { FUNNEL } from '../src/funnel.js';
+import { ALL_KINDS, GLOSSARY, holds, phrase } from '../src/clues.js';
+import { TIERS } from '../src/deduce.js';
+import { puzzleFromLevel, LEVEL_FILE } from '../src/levels.js';
 import { makeRules, mulberry32, neighbours } from '../src/util.js';
+
+const root = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 
 function connected(R, cells) {
   const set = new Set(cells);
@@ -31,35 +50,23 @@ function connected(R, cells) {
 }
 
 /**
- * Can this deal be worked out by elimination alone?
+ * Can this deal be worked out by elimination alone, leaning on the other
+ * animals of the deal no more than `tier` allows?
  *
- * Unique is not enough. A deal can have exactly one answer and still only be
- * findable by supposing an animal is somewhere and following it through -- and
- * with a strike on every wrong square, that supposition is a paid guess. The
- * rule is that nobody should ever have to make one.
- *
- * So this plays the deal the way a player does. Every animal starts with every
- * square it could legally take. Everything said about one animal is read
- * together, and so is everything said about the same two animals -- "I share a
- * row with the rooster" and "the rooster is exactly 5 steps away" are one fact
- * about where the rooster is, and anyone reading the card takes them that way.
- * A square is crossed off when it breaks what is said about its animal, or when
- * no square still open to the other animal of a pair fits with it. That repeats
- * until nothing more falls. If each animal is left with one square, the deal
- * can be solved without a guess.
- *
- * What it will not do is suppose. Chaining "if the crab were here, the rooster
- * would have to be there, and then the owl could not..." across all three is
- * exactly the guessing the rule forbids, so a deal that needs it fails.
- *
- * Written separately from the generator's own solver on purpose, so that a bug
- * in one cannot hide behind the same bug in the other.
+ * Every animal starts with every square it could legally take. Everything said
+ * about one animal is read together, and so is everything said about the same
+ * two animals. A square is crossed off when it breaks what is said about its
+ * animal, or -- for a pair -- when no square still open to the other animal
+ * fits with it. At tier 0 ("alone") pair facts between two animals of this deal
+ * are no help at all; at tier 1 ("in turn") one is used only once the other
+ * animal is down to a single square; at tier 2 ("together") always. Animals
+ * from earlier deals are on the board, so facts about them count at every
+ * tier. Nothing is ever supposed.
  */
-function deducible(p, deal, cand) {
+function deducible(p, deal, cand, tier) {
   const inDeal = new Set(deal.animals);
   const pos = Int32Array.from(p.animals, (a) => (a.round < deal.round ? a.cell : -1));
 
-  // clues keyed by the animals of this deal they are about: one, or a pair
   const about = new Map();
   for (const cl of deal.clues) {
     const ids = [cl.a, cl.b].filter((id) => inDeal.has(id)).sort((x, y) => x - y);
@@ -74,16 +81,19 @@ function deducible(p, deal, cand) {
   while (changed) {
     changed = false;
     for (const { ids, clues } of about.values()) {
+      if (ids.length === 2 && tier === 0) continue;
       const turns = ids.length === 1 ? [[ids[0], null]] : [ids, [ids[1], ids[0]]];
       for (const [me, other] of turns) {
+        if (other != null && tier === 1 && open.get(other).size !== 1) continue;
         for (const x of [...open.get(me)]) {
           pos[me] = x;
-          const fits = other == null
-            ? allTrue(clues)
-            : [...open.get(other)].some((y) => {
-                pos[other] = y;
-                return allTrue(clues);
-              });
+          const fits =
+            other == null
+              ? allTrue(clues)
+              : [...open.get(other)].some((y) => {
+                  pos[other] = y;
+                  return allTrue(clues);
+                });
           if (other != null) pos[other] = -1;
           if (!fits) {
             open.get(me).delete(x);
@@ -97,9 +107,10 @@ function deducible(p, deal, cand) {
   return deal.animals.every((id) => open.get(id).size === 1);
 }
 
-function auditPuzzle(p) {
+function auditPuzzle(p, tier) {
   const R = p.R;
   const problems = [];
+  const known = new Set(ALL_KINDS);
 
   // --- lands ---------------------------------------------------------------
   const sizes = p.zones.zoneCells.map((c) => c.length);
@@ -121,34 +132,33 @@ function auditPuzzle(p) {
     claimed.add(a.zone);
   }
 
-  // --- every clue is true of the finished board ----------------------------
+  // --- every clue is a known kind, and true of the finished board ----------
   const solution = Int32Array.from(p.animals, (a) => a.cell);
   for (const deal of p.deals) {
     for (const cl of deal.clues) {
-      if (holds(cl, p.ctx, solution) !== true) {
+      if (!known.has(cl.k)) {
+        problems.push(`deal ${deal.round + 1}: unknown kind of clue "${cl.k}"`);
+      } else if (holds(cl, p.ctx, solution) !== true) {
         problems.push(`deal ${deal.round + 1}: "${phrase([cl], p.ctx)}" is false on the answer`);
       }
     }
   }
+  if (problems.length) return { problems, stats: [] };
 
-  // --- and exactly one deal satisfies them ---------------------------------
+  // --- one answer, reachable without a guess at the promised tier ----------
   const stats = [];
   for (const deal of p.deals) {
     const r = deal.round;
     const cand = deal.animals.map((id) => {
       const out = [];
       for (let z = 0; z < p.zones.count; z++) {
-        if (p.zoneLand[z] === p.animals[id].land && p.zoneRound[z] >= r) {
-          out.push(...p.zones.zoneCells[z]);
-        }
+        if (p.zoneLand[z] === p.animals[id].land && p.zoneRound[z] >= r) out.push(...p.zones.zoneCells[z]);
       }
       return out;
     });
 
     const work = Int32Array.from(solution);
-    // animals from deals not yet played must not leak into the check
-    for (const a of p.animals) if (a.round >= r) work[a.id] = -1;
-
+    for (const a of p.animals) if (a.round >= r) work[a.id] = -1; // later deals must not leak in
     let wins = 0;
     for (const c0 of cand[0]) {
       for (const c1 of cand[1]) {
@@ -161,114 +171,123 @@ function auditPuzzle(p) {
       }
     }
     if (wins !== 1) problems.push(`deal ${r + 1}: ${wins} arrangements satisfy the clues, want 1`);
-    const fair = deducible(p, deal, cand);
-    if (!fair) problems.push(`deal ${r + 1}: unique, but needs a guess -- elimination alone stalls`);
-    stats.push({
-      guess: !fair,
-      clues: deal.clues.length,
-      coords: deal.clues.some((cl) => cl.k === 'inRow' || cl.k === 'inColumn'),
-    });
+
+    const fair = deducible(p, deal, cand, tier);
+    if (!fair) {
+      problems.push(`deal ${r + 1}: cannot be solved at "${TIERS[tier].name}" without a guess`);
+    }
+    stats.push({ clues: deal.clues.length, guess: !fair });
   }
-
   return { problems, stats };
-}
-
-const pickAll = (arg, table) => (!arg || arg === 'all' ? Object.keys(table) : [arg]);
-const boards = pickAll(process.argv[2], BOARDS);
-const levels = pickAll(process.argv[3], LEVELS);
-const runs = Number(process.argv[4] || 20);
-
-for (const key of [...boards.filter((b) => !BOARDS[b]), ...levels.filter((l) => !LEVELS[l])]) {
-  console.error(`unknown board or level "${key}"`);
-  process.exit(2);
 }
 
 let failed = 0;
 
-// Every kind of clue has to be explained to the player, or reading it is a
-// guess. The key shows GLOSSARY word for word, so it must cover them all.
+// --- the key explains every kind of clue -----------------------------------
 {
-  const kinds = [...new Set([...UNARY, ...BINARY, 'steps', 'inRow', 'inColumn', ...ALL_KINDS])];
   const explained = new Set(GLOSSARY.flatMap((g) => g.kinds));
-  const unexplained = kinds.filter((k) => !explained.has(k));
+  const unexplained = ALL_KINDS.filter((k) => !explained.has(k));
   if (unexplained.length) {
-    console.log(`  FAIL the key never explains: ${unexplained.join(', ')}`);
+    console.log(`FAIL the key never explains: ${unexplained.join(', ')}`);
     failed++;
   }
 }
-let audited = 0;
-let deals = 0;
-let coordDeals = 0;
-let guessDeals = 0;
-const allClues = [];
-const allTimes = [];
 
-for (const bk of boards) {
-  for (const lk of levels) {
-    const board = BOARDS[bk];
-    const level = LEVELS[lk];
-    const R = makeRules(board.N);
-    const clues = [];
-    const times = [];
-    let coords = 0;
-    let guesses = 0;
-    let count = 0;
-
-    for (let s = 0; s < runs; s++) {
-      const seed = 1000 + s * 3571;
-      const t0 = performance.now();
-      const p = makePuzzle(R, mulberry32(seed), board, level);
-      times.push(performance.now() - t0);
-      if (!p) {
-        console.log(`  FAIL ${bk}/${lk} seed ${seed}: no board produced`);
-        failed++;
-        continue;
+// --- the locked levels -----------------------------------------------------
+{
+  const file = path.join(root, LEVEL_FILE);
+  if (!fs.existsSync(file)) {
+    console.log(`${LEVEL_FILE}: none yet`);
+  } else {
+    const book = JSON.parse(fs.readFileSync(file, 'utf8'));
+    const ids = new Set();
+    let bad = 0;
+    book.levels.forEach((level, k) => {
+      const label = `level ${k + 1} (${level.id})`;
+      if (ids.has(level.id)) {
+        console.log(`  FAIL ${label}: id used twice`);
+        bad++;
       }
-      const { problems, stats } = auditPuzzle(p);
-      audited++;
-      for (const s2 of stats) {
-        clues.push(s2.clues);
-        count++;
-        if (s2.coords) coords++;
-        if (s2.guess) guesses++;
+      ids.add(level.id);
+      let p;
+      try {
+        p = puzzleFromLevel(level);
+      } catch (e) {
+        console.log(`  FAIL ${label}: ${e.message}`);
+        bad++;
+        return;
       }
+      const { problems } = auditPuzzle(p, level.spec.tier);
       if (problems.length) {
-        failed++;
-        console.log(`  FAIL ${bk}/${lk} seed ${seed}`);
+        bad++;
+        console.log(`  FAIL ${label}`);
         for (const msg of problems.slice(0, 4)) console.log(`        ${msg}`);
       }
-    }
-    deals += count;
-    coordDeals += coords;
-    guessDeals += guesses;
-    allClues.push(...clues);
-    allTimes.push(...times);
-    console.log(
-      `${bk.padEnd(9)} ${lk.padEnd(9)} ${runs} boards, slowest ${Math.max(...times).toFixed(0).padStart(4)}ms,` +
-        ` clues/deal max ${Math.max(...clues)}, needs a guess ${guesses}/${count},` +
-        ` coordinate fallback ${coords}/${count}`
-    );
+    });
+    failed += bad;
+    console.log(`${LEVEL_FILE}: ${book.levels.length} levels, ${bad} failed`);
   }
 }
 
+// --- fresh boards along the funnel -----------------------------------------
+const runs = Number(process.argv.find((a) => /^\d+$/.test(a)) || 10);
+let deals = 0;
+let guesses = 0;
+let unbuilt = 0;
+const times = [];
+
+FUNNEL.forEach((spec, step) => {
+  const R = makeRules(spec.N);
+  let worst = 0;
+  let maxClues = 0;
+  for (let s = 0; s < runs; s++) {
+    const seed = 1000 + s * 3571 + step * 17;
+    const t0 = performance.now();
+    const p = makeLevel(R, spec, mulberry32(seed));
+    const dt = performance.now() - t0;
+    times.push(dt);
+    worst = Math.max(worst, dt);
+    if (!p) {
+      unbuilt++;
+      console.log(`  NOTE step ${step + 1} seed ${seed}: no board built within the tries`);
+      continue;
+    }
+    const { problems, stats } = auditPuzzle(p, spec.tier);
+    for (const st of stats) {
+      deals++;
+      if (st.guess) guesses++;
+      maxClues = Math.max(maxClues, st.clues);
+    }
+    if (problems.length) {
+      failed++;
+      console.log(`  FAIL step ${step + 1} seed ${seed}`);
+      for (const msg of problems.slice(0, 4)) console.log(`        ${msg}`);
+    }
+  }
+  console.log(
+    `step ${String(step + 1).padStart(2)}  ${spec.N}x${spec.N} ${String(spec.lands).padStart(2)} lands` +
+      `  ${TIERS[spec.tier].name.padEnd(8)}  ${runs} boards, slowest ${worst.toFixed(0).padStart(4)}ms,` +
+      ` most clues in a deal ${maxClues}`
+  );
+});
+
 const avg = (a) => a.reduce((x, y) => x + y, 0) / a.length;
 console.log(
-  `\n${audited} boards audited, ${failed} failed.` +
-    ` Clues per deal: min ${Math.min(...allClues)}, avg ${avg(allClues).toFixed(2)}, max ${Math.max(...allClues)}.` +
-    ` Build: avg ${avg(allTimes).toFixed(0)}ms, worst ${Math.max(...allTimes).toFixed(0)}ms.` +
-    ` Needs a guess: ${guessDeals} of ${deals} deals. Coordinate fallback: ${coordDeals} of ${deals}.`
+  `\nFunnel sweep: ${deals} deals, ${guesses} need a guess, ${unbuilt} boards not built.` +
+    ` Build avg ${avg(times).toFixed(0)}ms, worst ${Math.max(...times).toFixed(0)}ms.` +
+    `\n${failed ? `${failed} FAILED` : 'All checks passed.'}`
 );
 
 if (process.argv.includes('--sample')) {
-  const demo = makePuzzle(makeRules(9), mulberry32(4242), BOARDS.standard, LEVELS.standard);
-  console.log(`\nSample board: ${demo.lands.map((l) => l.name).join(', ')}`);
+  const spec = FUNNEL[5];
+  const demo = makeLevel(makeRules(spec.N), spec, mulberry32(4242));
+  console.log(`\nSample, funnel step 6: ${demo.lands.map((l) => l.name).join(', ')}`);
   for (const deal of demo.deals) {
     console.log(`\n  Deal ${deal.round + 1}`);
     for (const id of deal.animals) {
       const a = demo.animals[id];
       const mine = deal.clues.filter((cl) => cl.a === id);
-      const at = `(r${demo.R.row(a.cell) + 1},c${demo.R.col(a.cell) + 1})`;
-      console.log(`    ${a.icon} ${a.name.padEnd(9)} ${a.landName.padEnd(8)} ${at.padEnd(9)} ${phrase(mine, demo.ctx) || '-'}`);
+      console.log(`    ${a.icon} ${a.name.padEnd(9)} ${phrase(mine, demo.ctx) || '-'}`);
     }
   }
 }

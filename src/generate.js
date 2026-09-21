@@ -1,65 +1,55 @@
-// Building a board that can be solved without a single guess.
+// Building a level that can be solved without a single guess.
 //
-// That is the rule, and it is stronger than having one answer. A deal can have
-// exactly one arrangement its clues allow and still only be findable by
-// supposing an animal is somewhere and following it through -- and with a
-// strike on every wrong square, that supposition is a paid guess. So a deal is
-// only accepted once deduce.js, working by elimination alone, gets every animal
-// down to one square. One answer comes free with that: the answer always
-// survives elimination, because every clue is true of it.
+// This runs in the level editor, not in the game: the game only ever plays
+// levels that were generated here, looked at by a person, and locked in. So the
+// generator's job is to meet a spec exactly or say it could not -- it never
+// quietly loosens a setting to get a board out, because then the editor's
+// sliders would stop meaning what they say.
+//
+// The rule every deal is built to is stronger than having one answer: it must
+// be solvable by elimination (deduce.js) at the tier the spec allows, which is
+// how much the animals of a deal may lean on each other. One answer comes free
+// with that, because the answer always survives elimination -- every clue is
+// true of it.
 //
 // The order of work is: cut the lands, decide where every animal ends up, and
 // only then work out what they are allowed to say. Choosing the answer first is
 // what makes the guarantee cheap -- every clue in the pool is a true statement
 // about the finished board by construction, so adding clues can only ever
 // narrow the player's options towards the answer and never away from it.
-//
-// The generator cannot fail. Row and column clues are always available at the
-// last resort, and a row plus a column pins a square outright, with no
-// reasoning between animals needed at all -- so elimination can always be
-// carried to the end. What can fail is doing it *tidily* -- inside the clue
-// budget, using only the readable kinds -- and that is what the retries and the
-// escalating budget are for.
 
-import { ALL_KINDS, BINARY, RANK, SIMPLE_KINDS, UNARY, holds } from './clues.js';
+import { BINARY, RANK, UNARY, holds, kindsFor, sentenceCount } from './clues.js';
 import { groupClues, isSolved, narrow, openness } from './deduce.js';
 import { pickLands, readAnimal } from './habitats.js';
 import { makeZones } from './zones.js';
 import { manhattan, range, shuffle } from './util.js';
 
-/**
- * How wordy a board has to be is decided by its area alone, and nothing else
- * can be done about it. In the first deal every square of a colour is in play,
- * which is a third of the board however the lands are cut, so the field is
- * (N^2/3)^3 deals wide: about 1,700 at 6 x 6 and 20,000 at 9 x 9, both of which
- * three or four facts can close. A 12 x 12 board is 110,000 wide and needs six
- * or seven -- cards nobody wants to read, for no gain over 9 x 9, which is why
- * there is no larger board here. Cutting it into more lands does not help: the
- * count of lands never enters that sum.
- *
- * `budget` is how many clues a deal may take before the layout is thrown away
- * and another one tried.
- */
-export const BOARDS = {
-  small: { N: 6, zones: 6, budget: 3, name: 'six lands, two deals' },
-  standard: { N: 9, zones: 9, budget: 3, name: 'nine lands, three deals' },
-  dense: { N: 9, zones: 12, budget: 3, name: 'twelve lands, four deals' },
-};
-
-/**
- * Difficulty is about what is said, not how much is needed to say it. Every
- * level pins its deals with a minimal set; gentle sticks to plain kinds of fact
- * and adds confirmation on top, sharp shows the minimum and nothing else --
- * take one clue away and the deal can no longer be worked out. No level ever
- * needs a guess.
- */
-export const LEVELS = {
-  gentle: { extra: 2, kinds: SIMPLE_KINDS, name: 'gentle' },
-  standard: { extra: 1, kinds: ALL_KINDS, name: 'standard' },
-  sharp: { extra: 0, kinds: ALL_KINDS, name: 'sharp' },
-};
-
 const LANDS_PER_DEAL = 3;
+
+/** Smallest and largest board the editor offers. */
+export const SIZES = { min: 5, max: 9 };
+
+/**
+ * How many lands a board of side N can be cut into: a multiple of three, since
+ * every deal is one animal of each colour, and no land smaller than four
+ * squares -- below that, a land is barely a place.
+ */
+export function landOptions(N) {
+  const out = [];
+  for (let n = LANDS_PER_DEAL; n <= Math.floor((N * N) / 4); n += LANDS_PER_DEAL) out.push(n);
+  return out;
+}
+
+/** A spec the editor starts from, and the shape every spec has. */
+export const DEFAULT_SPEC = {
+  N: 6, // board side
+  lands: 6, // how many lands; one animal each, three per deal
+  tier: 0, // how much a deal's animals may lean on each other -- see deduce.js
+  vocab: 0, // how far along VOCABULARY the clues may reach
+  spare: 1, // clues per deal beyond the minimum, as confirmation
+  perCard: 2, // most sentences any one card may carry
+  coords: false, // allow "I'm in row 3" -- plain, but it hands the answer over
+};
 
 /** Kinds that read the same both ways round, so one of the pair is redundant. */
 const MIRROR = {
@@ -88,14 +78,15 @@ function echoes(x, y) {
 const scopeOf = (cl) => (cl.b >= 0 ? [cl.a, cl.b].sort((x, y) => x - y).join(',') : String(cl.a));
 
 /**
- * Does x leave y with nothing to say? "I stand in a corner" already tells you
- * "I stand against the rim", and a board that says both reads like it is
- * padding. Two clues can only stand in that relation when they are about the
- * same animals, so the test walks just those animals' squares rather than the
- * whole field -- which is both cheaper and exactly as conclusive.
+ * Does x leave y with nothing to say? "I'm in a corner" already tells you "I'm
+ * on an edge", and "I'm next to the flamingo" already tells you "I'm next to
+ * Desert" when the flamingo can only stand in Desert. A card that says both
+ * reads like it is padding. x can only imply y if y is about no animal x is not
+ * also about, so the test walks just x's animals' squares.
  */
 function subsumes(x, y, cand, ctx, work, subs) {
-  if (scopeOf(x) !== scopeOf(y)) return false;
+  const xs = scopeOf(x).split(',');
+  if (!scopeOf(y).split(',').every((id) => xs.includes(id))) return false;
   const ai = subs.indexOf(x.a);
   const bi = x.b >= 0 ? subs.indexOf(x.b) : -1;
   if (ai < 0) return false;
@@ -118,13 +109,9 @@ function subsumes(x, y, cand, ctx, work, subs) {
 }
 
 /**
- * Which land of each colour is dealt alongside which.
- *
- * Left to chance the three lands in a deal are usually strewn across the board,
- * and then no animal can say anything about touching another -- the best it can
- * manage is a distance, which is arithmetic rather than a puzzle. Pairing lands
- * that share a border is what puts the animals within reach of each other and
- * makes "I touch both the fish and the lion" a sentence this game can produce.
+ * Which land of each colour is dealt alongside which. Pairing lands that share
+ * a border is what puts a deal's animals within reach of each other, so that
+ * "I'm next to the fish and the lion" is a sentence this game can produce.
  */
 function groupRounds(zones, byLand, rounds, rng) {
   let best = null;
@@ -147,23 +134,35 @@ function groupRounds(zones, byLand, rounds, rng) {
 }
 
 /**
- * Where in its land each of a deal's three animals ends up. Bordering lands are
- * only an opportunity; the animals still have to be stood near the border for
- * anything to come of it. Scoring every arrangement and drawing from the best
- * of them keeps them in each other's company without freezing on one answer.
+ * Where in its land each of a deal's three animals ends up. For a deal whose
+ * animals may lean on each other, they are stood near each other, which is
+ * what gives them something to say about each other. For a deal where each
+ * must stand alone that is beside the point, so they are spread instead:
+ * corners and edges are where a square is easiest to describe on its own.
  */
-function placeTrio(R, zones, group, rng) {
+function placeTrio(R, zones, group, tier, rng) {
   const [A, B, C] = group.map((z) => zones.zoneCells[z]);
+  const edgeness = (i) => {
+    const r = R.row(i);
+    const c = R.col(i);
+    return (r === 0 || r === R.N - 1 ? 1 : 0) + (c === 0 || c === R.N - 1 ? 1 : 0);
+  };
   const scored = [];
   for (const a of A) {
     for (const b of B) {
       for (const c of C) {
-        const ab = manhattan(R, a, b);
-        const ac = manhattan(R, a, c);
-        const bc = manhattan(R, b, c);
-        const touching = (ab === 1) + (ac === 1) + (bc === 1);
-        const close = (ab === 2) + (ac === 2) + (bc === 2);
-        scored.push({ cells: [a, b, c], score: touching * 6 + close * 2 - (ab + ac + bc) * 0.25 });
+        let score;
+        if (tier === 0) {
+          score = edgeness(a) + edgeness(b) + edgeness(c) + rng() * 1.5;
+        } else {
+          const ab = manhattan(R, a, b);
+          const ac = manhattan(R, a, c);
+          const bc = manhattan(R, b, c);
+          const touching = (ab === 1) + (ac === 1) + (bc === 1);
+          const close = (ab === 2) + (ac === 2) + (bc === 2);
+          score = touching * 6 + close * 2 - (ab + ac + bc) * 0.25;
+        }
+        scored.push({ cells: [a, b, c], score });
       }
     }
   }
@@ -174,7 +173,7 @@ function placeTrio(R, zones, group, rng) {
 
 // --- what the animals are allowed to say -----------------------------------
 
-function buildPool(ctx, subs, earlier, kinds, solution, coords) {
+function buildPool(ctx, subs, earlier, kinds, solution) {
   const pool = [];
   const allow = new Set(kinds);
   const push = (cl) => {
@@ -184,17 +183,18 @@ function buildPool(ctx, subs, earlier, kinds, solution, coords) {
 
   for (const a of subs) {
     for (const k of UNARY) push({ k, a, b: -1, n: 0 });
-    // Bare coordinates give the answer away rather than pose it, so they are
-    // held back until a deal has been shown to need them. Row plus column pins
-    // any square outright, with no reasoning between animals needed, so once
-    // they are in the pool elimination can always finish a deal -- which is
-    // what leaves the generator with no way to fail.
-    if (coords) {
-      pool.push({ k: 'inRow', a, b: -1, n: ctx.R.row(solution[a]) });
-      pool.push({ k: 'inColumn', a, b: -1, n: ctx.R.col(solution[a]) });
+    for (let side = 0; side < 4; side++) push({ k: 'side', a, b: -1, n: side });
+    // only other colours are named: "I'm next to Savanna" said from inside
+    // Savanna would be true of half the land and read like a riddle
+    for (let h = 0; h < ctx.lands.length; h++) {
+      if (h === ctx.animals[a].land) continue;
+      push({ k: 'nearLand', a, b: -1, n: h });
+      push({ k: 'notNearLand', a, b: -1, n: h });
     }
+    push({ k: 'inRow', a, b: -1, n: ctx.R.row(solution[a]) });
+    push({ k: 'inColumn', a, b: -1, n: ctx.R.col(solution[a]) });
 
-    // Naming a distant animal from an earlier round is technically true and
+    // Naming a distant animal from an earlier deal is technically true and
     // practically useless -- the player cannot see the relationship. Keep to
     // the near ones, which also holds the pool down to a size worth scanning.
     const near = [...earlier]
@@ -212,19 +212,23 @@ function buildPool(ctx, subs, earlier, kinds, solution, coords) {
 }
 
 /**
- * Choose what a deal's animals say: enough for elimination alone to put every
- * animal on its square, and as little more as possible.
+ * Choose what a deal's animals say: enough for elimination at the spec's tier
+ * to put every animal on its square, and as little more as possible.
  *
  * Greedy takes the clue after which elimination leaves the fewest options
- * open, nudged by how readable its kind is and by how often that kind has
- * already been used -- a deal whose three clues are three different sorts of
- * fact is a better puzzle than one that lists three distances. A clue that
- * would only help someone willing to suppose -- one elimination cannot use yet
- * -- makes no progress here and is passed over, which is the whole point.
- * Greedy overshoots, so every chosen clue is then tested for whether the
- * others can already do its work, and dropped if they can.
+ * open, nudged by how readable its kind is, by how often that kind has already
+ * been used, and against leaning on another animal of the same deal when a
+ * fact that stands alone would do as well. A clue elimination cannot use at
+ * this tier makes no progress and is passed over. Greedy overshoots, so every
+ * chosen clue is then tested for whether the others can already do its work,
+ * and dropped if they can.
  */
-function chooseClues(cand, pool, ctx, work, subs, level, maxClues, spent, rng) {
+function chooseClues(cand, pool, ctx, work, subs, spec, spent, rng) {
+  const { tier, perCard } = spec;
+  const cardFits = (cl, shown) =>
+    sentenceCount([...shown.filter((c) => c.a === cl.a), cl]) <= perCard;
+  const leans = (cl) => cl.b >= 0 && subs.includes(cl.b);
+
   let open = cand;
   const chosen = [];
 
@@ -235,71 +239,58 @@ function chooseClues(cand, pool, ctx, work, subs, level, maxClues, spent, rng) {
     let bestOpen = null;
 
     for (const cl of pool) {
-      if (chosen.some((c) => sameClue(c, cl))) continue;
+      if (chosen.some((c) => sameClue(c, cl)) || !cardFits(cl, chosen)) continue;
       // Elimination only ever removes, so starting from what the clues so far
       // already left open reaches the same end as starting over, for less work.
-      const next = narrow(open, groupClues([...chosen, cl], subs), ctx, work, subs);
+      const next = narrow(open, groupClues([...chosen, cl], subs), ctx, work, subs, tier);
       const n = openness(next);
       if (n >= total) continue; // nothing elimination can do with it yet
-      // Three different sorts of fact beat three distances, and a board that
-      // opens every deal the same way has one idea in it -- so repeating a kind
-      // costs, and leaning on it all game costs a little more.
-      //
-      // Repeating a kind on the *same* animal is the exception, and is paid a
-      // bonus instead: two touches by one animal fold into a single sentence,
-      // "I touch both the fish and the lion", which is one thing to read and
-      // the most satisfying shape this game makes. Keeping a deal's clues in
-      // few mouths is worth something on its own, so sharing a speaker earns a
-      // smaller discount of the same sort.
+      // Repeating a kind on the same animal folds into one sentence ("I'm next
+      // to the fish and the lion") and is paid a bonus; repeating it on another
+      // animal, or leaning on it all game, costs.
       const folds = chosen.some((c) => c.a === cl.a && c.k === cl.k);
-      const speaks = chosen.some((c) => c.a === cl.a);
       const elsewhere = chosen.filter((c) => c.k === cl.k && c.a !== cl.a).length;
-      const tired =
-        (folds ? -2 : speaks ? -0.8 : 0) + 2 * elsewhere + 0.8 * (spent.get(cl.k) || 0);
-      const score = n * (1 + 0.12 * ((RANK[cl.k] ?? 6) + tired));
+      const tired = (folds ? -2 : 0) + 2 * elsewhere + 0.8 * (spent.get(cl.k) || 0);
+      const lean = leans(cl) ? 1.5 : 0;
+      const score = n * (1 + 0.12 * ((RANK[cl.k] ?? 6) + tired + lean));
       if (score < bestScore) {
         bestScore = score;
         best = cl;
         bestOpen = next;
       }
     }
-    // Stalled: nothing left in the pool that elimination can use. Never happens
-    // once row and column clues are in the pool; before that, the caller moves
-    // on to another layout rather than accept a deal that needs a guess.
+    // Stalled: nothing left that elimination can use at this tier, within the
+    // card limit. The caller tries another layout.
     if (!best) return null;
     open = bestOpen;
     chosen.push(best);
-    if (chosen.length > maxClues + 3) return null;
   }
 
   let kept = chosen;
   for (const cl of shuffle([...chosen], rng)) {
     if (kept.length < 2) break;
     const trial = kept.filter((c) => c !== cl);
-    if (isSolved(narrow(cand, groupClues(trial, subs), ctx, work, subs))) kept = trial;
+    if (isSolved(narrow(cand, groupClues(trial, subs), ctx, work, subs, tier))) kept = trial;
   }
-  if (kept.length > maxClues) return null;
 
-  // Confirmation for the gentler levels: true things that were not needed. They
-  // cannot open a second answer or make a guess necessary -- every clue in the
-  // pool holds for the answer, so an extra one only ever crosses off more --
-  // they just save the player from having to find the one line of reasoning
-  // that works.
-  //
-  // An extra has to earn its line, though. Anything an already-shown clue
-  // implies is not help, it is padding, and a card that says "I stand in a
-  // corner" and then "I stand against the rim" reads like the board is stalling.
+  // Spare clues: true things that were not needed. They can only cross off
+  // more, so they never make a guess necessary -- they save the player from
+  // having to find the one line of reasoning that works. Anything a shown clue
+  // already implies is padding, not help, and is skipped. When a deal is meant
+  // to be solved animal by animal, a spare that leans on another animal of the
+  // deal would undercut that, so it is skipped too.
   const extras = [];
-  if (level.extra > 0) {
+  if (spec.spare > 0) {
     const load = new Map(subs.map((a) => [a, kept.filter((c) => c.a === a).length]));
     const bag = shuffle(
-      pool.filter((cl) => (RANK[cl.k] ?? 9) <= 5 && !kept.some((c) => echoes(c, cl))),
+      pool.filter((cl) => (RANK[cl.k] ?? 9) <= 5 && !(tier === 0 && leans(cl))),
       rng
     );
     bag.sort((x, y) => load.get(x.a) - load.get(y.a) || (RANK[x.k] ?? 9) - (RANK[y.k] ?? 9));
     for (const cl of bag) {
-      if (extras.length >= level.extra) break;
+      if (extras.length >= spec.spare) break;
       const shown = [...kept, ...extras];
+      if (!cardFits(cl, shown)) continue;
       if (shown.some((c) => echoes(c, cl) || subsumes(c, cl, cand, ctx, work, subs))) continue;
       extras.push(cl);
       load.set(cl.a, load.get(cl.a) + 1);
@@ -307,27 +298,20 @@ function chooseClues(cand, pool, ctx, work, subs, level, maxClues, spent, rng) {
   }
 
   for (const cl of [...kept, ...extras]) spent.set(cl.k, (spent.get(cl.k) || 0) + 1);
-  return [...kept, ...extras];
+  return { clues: [...kept, ...extras], spare: extras.length };
 }
 
-// --- one whole board -------------------------------------------------------
+// --- one whole level -------------------------------------------------------
 
-/** What a deal may draw on, in the order it is allowed to reach for them. */
-const VOCABULARIES = [
-  { kinds: null, coords: false }, // whatever the level asked for
-  { kinds: ALL_KINDS, coords: false },
-  { kinds: ALL_KINDS, coords: true },
-];
-
-function attempt(R, rng, board, level, maxClues, tier) {
-  const zones = makeZones(R, board.zones, rng);
+function attempt(R, rng, spec) {
+  const zones = makeZones(R, spec.lands, rng);
   const lands = pickLands(rng, LANDS_PER_DEAL);
-  const rounds = board.zones / LANDS_PER_DEAL;
+  const rounds = spec.lands / LANDS_PER_DEAL;
 
-  // every land gets the same number of territories, so each deal can offer one
-  // animal of each colour right up to the last round
-  const bag = shuffle(range(board.zones), rng);
-  const zoneLand = new Int8Array(board.zones);
+  // every colour gets the same number of lands, so each deal can offer one
+  // animal of each colour right up to the last
+  const bag = shuffle(range(spec.lands), rng);
+  const zoneLand = new Int8Array(spec.lands);
   const byLand = lands.map(() => []);
   bag.forEach((z, k) => {
     const h = (k / rounds) | 0;
@@ -336,86 +320,55 @@ function attempt(R, rng, board, level, maxClues, tier) {
   });
 
   const groups = groupRounds(zones, byLand, rounds, rng);
-  const zoneRound = new Int8Array(board.zones);
+  const zoneRound = new Int8Array(spec.lands);
   groups.forEach((g, r) => g.forEach((z) => (zoneRound[z] = r)));
 
   const animals = [];
   const byRound = range(rounds).map(() => []);
   const cast = lands.map((land) => shuffle([...land.animals], rng).slice(0, rounds));
   groups.forEach((group, r) => {
-    const seats = placeTrio(R, zones, group, rng);
+    const seats = placeTrio(R, zones, group, spec.tier, rng);
     group.forEach((z, h) => {
       const { icon, name } = readAnimal(cast[h][r]);
       const id = animals.length;
-      animals.push({
-        id,
-        icon,
-        name,
-        land: h,
-        landName: lands[h].name,
-        zone: z,
-        round: r,
-        cell: seats[h],
-      });
+      animals.push({ id, icon, name, land: h, landName: lands[h].name, zone: z, round: r, cell: seats[h] });
       byRound[r].push(id);
     });
   });
 
-  const ctx = { R, zoneOf: zones.zoneOf, zoneAdj: zones.zoneAdj, animals };
+  const ctx = { R, zoneOf: zones.zoneOf, zoneAdj: zones.zoneAdj, zoneLand, lands, animals };
   const solution = Int32Array.from(animals, (a) => a.cell);
+  const kinds = kindsFor(spec.vocab, spec.coords);
 
   const deals = [];
-  const spent = new Map(); // kinds already leaned on, across the whole board
+  const spent = new Map(); // kinds already leaned on, across the whole level
   for (let r = 0; r < rounds; r++) {
     const subs = byRound[r];
     const cand = subs.map((a) => {
       const out = [];
-      for (let z = 0; z < board.zones; z++) {
+      for (let z = 0; z < spec.lands; z++) {
         if (zoneLand[z] === animals[a].land && zoneRound[z] >= r) out.push(...zones.zoneCells[z]);
       }
       return out;
     });
-
     const earlier = animals.filter((a) => a.round < r).map((a) => a.id);
-    // Concessions, worst last, and made one deal at a time so a single awkward
-    // deal never coarsens the rest of the board. Widening the vocabulary is a
-    // small thing to give up -- a gentle board saying "higher up than the fox"
-    // is still a gentle board. Naming a row outright is not, so it goes last.
-    let clues = null;
-    for (const vocab of VOCABULARIES.slice(0, tier + 1)) {
-      const pool = buildPool(ctx, subs, earlier, vocab.kinds ?? level.kinds, solution, vocab.coords);
-      const work = Int32Array.from(solution);
-      clues = chooseClues(cand, pool, ctx, work, subs, level, maxClues, spent, rng);
-      if (clues) break;
-    }
-    if (!clues) return null;
-    deals.push({ round: r, animals: subs, clues });
+    const pool = buildPool(ctx, subs, earlier, kinds, solution);
+    const chosen = chooseClues(cand, pool, ctx, Int32Array.from(solution), subs, spec, spent, rng);
+    if (!chosen) return null;
+    deals.push({ round: r, animals: subs, clues: chosen.clues, spare: chosen.spare });
   }
 
-  return { R, board, level, zones, lands, zoneLand, zoneRound, animals, deals, ctx, rounds };
+  return { R, spec, zones, lands, zoneLand, zoneRound, animals, deals, ctx, rounds };
 }
 
-export function makePuzzle(R, rng, board, level) {
-  // Widen the budget rather than give up: a board that needs four clues to pin
-  // a deal is still a fine board, and refusing it would only mean handing the
-  // player a different layout that happens to need three.
-  // Give up the cheap things first: a clue more, then a clue more again, then
-  // the level's choosiness about what may be said. Bare coordinates are the
-  // last rung, and by the time it is reached some seventy layouts have been
-  // tried and thrown away without them. Its only job is to make failure
-  // impossible, and reaching it at all is rare.
-  const ladder = [
-    [board.budget, 0],
-    [board.budget + 1, 0],
-    [board.budget + 3, 0],
-    [board.budget + 3, 1],
-    [99, 2],
-  ];
-  for (const [budget, tier] of ladder) {
-    for (let tries = 0; tries < 18; tries++) {
-      const puzzle = attempt(R, rng, board, level, budget, tier);
-      if (puzzle) return puzzle;
-    }
+/**
+ * Build a level to the spec, or return null if none of the layouts tried can
+ * be clued within it -- the editor then says so and suggests what to loosen.
+ */
+export function makeLevel(R, spec, rng, tries = 80) {
+  for (let t = 0; t < tries; t++) {
+    const puzzle = attempt(R, rng, spec);
+    if (puzzle) return puzzle;
   }
   return null;
 }

@@ -7,25 +7,34 @@
 // guess.
 //
 // So each animal starts with every square it could legally take, and squares
-// are crossed off until nothing more falls:
+// are crossed off until nothing more falls. How much the animals of a deal may
+// lean on each other while that happens is the TIER, and it is the main dial of
+// difficulty:
 //
-//   - everything said about one animal is read together, and a square that
-//     breaks any of it goes;
-//   - everything said about the same two animals is read together too -- "I
-//     share a row with the rooster" and "the rooster is exactly 5 steps away"
-//     are one fact about where the rooster stands -- and a square goes when no
-//     square still open to the other animal fits with it.
+//   0  alone     Each animal is placed from its own card. Anything said about
+//                an animal already on the board counts -- that animal is not
+//                going anywhere -- but what one animal of this deal says about
+//                another of this deal is no help until then.
+//   1  in turn   Place one, and it becomes a fixed point for the others: "I'm
+//                next to the fish" is used as soon as the fish is placed.
+//   2  together  Animals pin each other while neither is placed yet: the fish
+//                can only be here or here, so the bear, being next to it, can
+//                only be there.
 //
-// A deal passes when every animal is down to one square. What this never does
-// is suppose: chaining "if the crab were here, the rooster would be there, and
-// then the owl could not..." through all three animals is the guessing the rule
-// forbids, so a deal that needs it is not a deal this game will deal.
-//
-// Animals from earlier deals are already on the board, so anything said about
-// one of them is, to the player, a fact about a fixed square -- it is read as
-// part of what is said about the animal in the current deal.
+// At every tier, everything said about one animal is read together, and so is
+// everything said about the same two animals -- "I'm in the rooster's row" and
+// "I'm 5 steps from the rooster" are one fact about where the rooster stands.
+// What no tier ever does is suppose: chaining "if the crab were here, the
+// rooster would be there, and then the owl could not..." through all three is
+// the guessing the rule forbids.
 
 import { holds } from './clues.js';
+
+export const TIERS = [
+  { name: 'Alone', blurb: 'every animal can be placed from its own card' },
+  { name: 'In turn', blurb: 'placing one animal tells you where the next goes' },
+  { name: 'Together', blurb: 'animals pin each other before any is placed' },
+];
 
 /**
  * Sort a deal's clues by who they are about.
@@ -50,9 +59,10 @@ export function groupClues(clues, subs) {
  *
  * @param open  one array of candidate squares per animal of the deal
  * @param pos   scratch positions for every animal; earlier deals already filled in
+ * @param tier  how much the deal's animals may lean on each other (see TIERS)
  * @returns the narrowed candidate lists (the input is left alone)
  */
-export function narrow(open, groups, ctx, pos, subs) {
+export function narrow(open, groups, ctx, pos, subs, tier = 2) {
   const dom = open.map((cells) => cells.slice());
   const fits = (clues) => clues.every((cl) => holds(cl, ctx, pos) === true);
 
@@ -60,8 +70,11 @@ export function narrow(open, groups, ctx, pos, subs) {
   while (changed) {
     changed = false;
     for (const g of groups) {
+      if (g.b >= 0 && tier === 0) continue; // about two of this deal: no help alone
       const turns = g.b < 0 ? [[g.a, -1]] : [[g.a, g.b], [g.b, g.a]];
       for (const [m, o] of turns) {
+        // in turn: the other animal has to be settled -- down to one square -- first
+        if (o >= 0 && tier === 1 && dom[o].length !== 1) continue;
         const me = subs[m];
         const kept = dom[m].filter((x) => {
           pos[me] = x;
@@ -86,3 +99,16 @@ export const isSolved = (dom) => dom.every((cells) => cells.length === 1);
 
 /** How much is still open, as the number of arrangements the lists allow. */
 export const openness = (dom) => dom.reduce((n, cells) => n * cells.length, 1);
+
+/**
+ * The least a deal asks of the player: the lowest tier that solves it, or -1
+ * if even "together" stalls -- which, for a deal built by the generator, would
+ * be a bug.
+ */
+export function tierNeeded(open, clues, ctx, pos, subs) {
+  const groups = groupClues(clues, subs);
+  for (let t = 0; t < TIERS.length; t++) {
+    if (isSolved(narrow(open, groups, ctx, pos, subs, t))) return t;
+  }
+  return -1;
+}

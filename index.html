@@ -20,7 +20,7 @@
   </head>
   <body>
     <header class="masthead">
-      <span class="dateline left" id="seed">No. 000000</span>
+      <span class="dateline left" id="levelNo">Level 1</span>
       <h1>Zoodoku</h1>
       <span class="dateline right" id="blurb">Settle the animals</span>
     </header>
@@ -30,12 +30,13 @@
     <main>
       <canvas id="stage"></canvas>
       <div id="banner">
-        <strong>Every land settled</strong>
-        <span>Each animal exactly where its own words put it.</span>
+        <strong id="bannerTitle">Level complete</strong>
+        <span id="bannerNote">Each animal exactly where its own words put it.</span>
+        <button id="nextBtn">Next level</button>
       </div>
       <div id="lost" hidden role="alertdialog" aria-labelledby="lostTitle">
         <strong id="lostTitle">Five strikes</strong>
-        <span>Back to the start of this board — same lands, same animals.</span>
+        <span>Back to the start of this level — same lands, same animals.</span>
         <button id="retry">Start again</button>
       </div>
     </main>
@@ -49,15 +50,15 @@
         <span id="note">—</span>
       </div>
       <div class="bar">
-        <button id="newGame">New</button>
+        <button id="levelsBtn">Levels</button>
         <button id="keyBtn">Key</button>
         <button id="moreBtn">More</button>
       </div>
       <p class="help">
         Tap an animal, then tap a square — or drag it straight across. It lands
         when you let go, so slide off the board to change your mind. A wrong
-        square costs a strike; five and the board starts over.
-        <b>Esc</b> puts it down · <b>N</b> deals a new board.
+        square costs a strike; five and the level starts over.
+        <b>Esc</b> puts it down · <b>N</b> goes to the next level once this one is done.
       </p>
     </footer>
 
@@ -94,26 +95,8 @@
         <button class="close" data-close>Done</button>
       </div>
 
-      <label class="field"
-        >Board
-        <select id="board">
-          <option value="small">6 × 6 — six lands, two deals</option>
-          <option value="standard" selected>9 × 9 — nine lands, three deals</option>
-          <option value="dense">9 × 9 — twelve lands, four deals</option>
-        </select>
-      </label>
-
-      <label class="field"
-        >Clues
-        <select id="level">
-          <option value="gentle">gentle — plain facts, and one to spare</option>
-          <option value="standard" selected>standard</option>
-          <option value="sharp">sharp — nothing said twice</option>
-        </select>
-      </label>
-
       <div class="sheet-actions">
-        <button id="reveal" class="ghost">Give up</button>
+        <button id="reveal" class="ghost">Show the answer</button>
       </div>
 
       <p class="sheet-note">
@@ -129,14 +112,24 @@
         costs nothing.
       </p>
       <p class="sheet-note">
-        <b>Gentle</b> sticks to plain facts and throws in a clue more than the
-        deal strictly needs. <b>Sharp</b> tells you the bare minimum: take one
-        clue away and the deal could no longer be worked out. No level ever
-        needs a guess.
+        Showing the answer ends the level without finishing it — the next
+        level stays locked.
       </p>
       <p class="sheet-note">
         An animal only ever lands on its own square, so once it is down it is
         locked — there is nothing to undo.
+      </p>
+    </section>
+
+    <section class="sheet" id="levelsSheet" hidden aria-label="Levels">
+      <div class="sheet-head">
+        <h2>Levels</h2>
+        <button class="close" data-close>Done</button>
+      </div>
+      <ol class="level-list" id="levelList"></ol>
+      <p class="sheet-note">
+        Each level opens once the one before it is finished. They start small,
+        with every animal placeable from its own card, and grow from there.
       </p>
     </section>
 

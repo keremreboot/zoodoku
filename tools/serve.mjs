@@ -1,9 +1,15 @@
 // Local static server. ES modules need http rather than file://, which is the
 // only reason this exists -- `python -m http.server` does the same job.
 //
-// It also takes POST /snap?name=x with a data-URL body and writes it to
-// tools/snaps/x.png. That is how a canvas render gets out of a headless browser
-// for review: the page posts canvas.toDataURL() and the picture lands on disk.
+// Two things can be written through it, both for local development only:
+//
+//   POST /levels      the level editor saves levels/levels.json here when you
+//                     lock a level in, reorder or delete one
+//   POST /snap?name=x a data-URL body is written to tools/snaps/x.png -- how a
+//                     canvas render gets out of a headless browser for review
+//
+// Because it writes files, it listens on this machine only (127.0.0.1), never
+// on the network.
 //
 //   node tools/serve.mjs [root] [port]
 
@@ -11,6 +17,7 @@ import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { FORMAT, LEVEL_FILE, formatBook } from '../src/levels.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(process.argv[2] || path.join(here, '..'));
@@ -29,6 +36,27 @@ const TYPES = {
 
 http
   .createServer((req, res) => {
+    if (req.method === 'POST' && req.url === '/levels') {
+      const chunks = [];
+      req.on('data', (d) => chunks.push(d));
+      req.on('end', () => {
+        let book;
+        try {
+          book = JSON.parse(Buffer.concat(chunks).toString('utf8'));
+          if (book.format !== FORMAT || !Array.isArray(book.levels)) throw new Error('not a level book');
+        } catch (e) {
+          res.writeHead(400, { 'Content-Type': 'text/plain' }).end(e.message);
+          return;
+        }
+        const file = path.join(ROOT, LEVEL_FILE);
+        fs.mkdirSync(path.dirname(file), { recursive: true });
+        fs.writeFileSync(file, formatBook(book));
+        console.log(`saved ${book.levels.length} levels to ${LEVEL_FILE}`);
+        res.writeHead(200, { 'Content-Type': 'application/json' }).end(JSON.stringify({ saved: book.levels.length }));
+      });
+      return;
+    }
+
     if (req.method === 'POST' && req.url.startsWith('/snap')) {
       const name = new URL(req.url, 'http://x').searchParams.get('name') || 'snap';
       const safe = name.replace(/[^\w-]/g, '_') + '.png';
@@ -62,4 +90,4 @@ http
       res.end(body);
     });
   })
-  .listen(PORT, () => console.log(`serving ${ROOT} on http://localhost:${PORT}`));
+  .listen(PORT, '127.0.0.1', () => console.log(`serving ${ROOT} on http://localhost:${PORT}`));

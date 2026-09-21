@@ -82,6 +82,7 @@ export class View {
     this.spotlight = new Set();
     this.tokens = [];
     this.misses = []; // { cell, t } squares that just cost a strike, fading from 1 to 0
+    this.crossOut = true; // mark squares no animal can ever take; the editor turns it off
   }
 
   setPuzzle(game) {
@@ -224,6 +225,7 @@ export class View {
     this.drawLands(ctx);
     this.drawGrid(ctx);
     this.drawLabels(ctx);
+    if (this.crossOut) this.drawDead(ctx);
     this.drawHover(ctx);
     this.drawMisses(ctx);
     this.drawTokens(ctx);
@@ -322,11 +324,16 @@ export class View {
     const zoneOf = this.game.zones.zoneOf;
     const base = Math.max(7, Math.min(13, S * 0.26));
 
+    // a land with its animal is finished, and crossed out: its name would only
+    // sit on top of the crosses and say nothing the player still needs
+    const taken = new Set();
+    if (this.crossOut) for (const p of this.game.pos) if (p >= 0) taken.add(zoneOf[p]);
+
     ctx.save();
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     for (const { zone, cell } of this.labels) {
-      if (this.game.pos.includes(cell)) continue; // an animal is standing on it
+      if (this.game.pos.includes(cell) || taken.has(zone)) continue;
       const land = this.landOfZone(zone);
       const text = land.name.toUpperCase();
       const r = R.row(cell);
@@ -349,6 +356,41 @@ export class View {
       ctx.globalAlpha = this.carry != null && !this.isOpen(cell) ? 0.22 : 0.5;
       ctx.fillText(text, this.px(left) + run / 2, this.py(r) + S / 2);
     }
+    ctx.restore();
+  }
+
+  /**
+   * A land takes one animal, so the moment one lands every other square of that
+   * land is dead -- nothing will ever stand there. Crossing them out does
+   * nothing the rules do not already do; it just stops the player having to
+   * hold it in their head, which on a board of twelve lands is most of what
+   * there is to hold.
+   */
+  drawDead(ctx) {
+    const R = this.R;
+    const S = this.S;
+    const zoneOf = this.game.zones.zoneOf;
+    const taken = new Set();
+    for (const p of this.game.pos) if (p >= 0) taken.add(zoneOf[p]);
+    if (!taken.size) return;
+
+    const inset = S * 0.3;
+    ctx.save();
+    ctx.strokeStyle = PALETTE.ink;
+    ctx.globalAlpha = 0.3;
+    ctx.lineWidth = Math.max(1, S * 0.03);
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    for (let i = 0; i < R.cells; i++) {
+      if (!taken.has(zoneOf[i]) || this.game.pos.includes(i)) continue;
+      const x = this.px(R.col(i));
+      const y = this.py(R.row(i));
+      ctx.moveTo(x + inset, y + inset);
+      ctx.lineTo(x + S - inset, y + S - inset);
+      ctx.moveTo(x + S - inset, y + inset);
+      ctx.lineTo(x + inset, y + S - inset);
+    }
+    ctx.stroke();
     ctx.restore();
   }
 
