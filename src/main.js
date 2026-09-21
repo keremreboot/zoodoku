@@ -3,7 +3,7 @@
 // The game plays curated levels, in order, from levels/levels.json. It never
 // generates a board itself: every level was made in the editor, looked at by a
 // person and locked in, and the audit checks each one can be solved without a
-// guess. Finishing a level opens the next.
+// guess. Every level is open from the start; finishing one ticks it off.
 //
 // An animal is carried rather than dragged. Pressing a card picks it up and it
 // stays up until it lands, which means the same code serves a drag across the
@@ -89,7 +89,6 @@ function saveProgress() {
 }
 
 const isSolvedLevel = (k) => solved.has(book.levels[k]?.id);
-const isOpenLevel = (k) => k === 0 || isSolvedLevel(k) || isSolvedLevel(k - 1);
 
 /** Where to pick up: the first level not yet finished, or the last one. */
 function resumeAt() {
@@ -109,7 +108,7 @@ function setFlash(text, tone = 'good') {
 // --- playing a level ---------------------------------------------------------
 
 function startLevel(k) {
-  if (!book.levels[k] || !isOpenLevel(k)) return;
+  if (!book.levels[k]) return;
   index = k;
   playtest = false;
   history.replaceState(null, '', `#${k + 1}`);
@@ -153,11 +152,11 @@ function onSolved() {
   const last = index >= book.levels.length - 1;
   ui.bannerTitle.textContent = revealed ? 'The answer' : `Level ${index + 1} complete`;
   ui.bannerNote.textContent = revealed
-    ? 'Shown, not solved — the next level stays locked.'
+    ? 'Shown, not solved — it stays unticked in the list.'
     : last
       ? 'That was the last level, for now.'
       : 'Each animal exactly where its own words put it.';
-  ui.nextBtn.hidden = revealed || last;
+  ui.nextBtn.hidden = last;
 }
 
 /** The key lists only the animals this level cast, in dealing order. */
@@ -225,7 +224,6 @@ function buildLevelList() {
       const btn = document.createElement('button');
       btn.type = 'button';
       btn.className = 'level-row';
-      btn.disabled = !isOpenLevel(k);
       btn.classList.toggle('current', !playtest && k === index);
       btn.classList.toggle('done', isSolvedLevel(k));
 
@@ -237,7 +235,7 @@ function buildLevelList() {
       what.textContent = `${lv.N} × ${lv.N} · ${lv.deals.length} deal${lv.deals.length === 1 ? '' : 's'} · ${TIERS[lv.spec.tier].name.toLowerCase()}`;
       const tick = document.createElement('span');
       tick.className = 'level-mark';
-      tick.textContent = isSolvedLevel(k) ? '✓' : isOpenLevel(k) ? '' : '🔒';
+      tick.textContent = isSolvedLevel(k) ? '✓' : '';
 
       btn.append(num, what, tick);
       btn.addEventListener('click', () => {
@@ -542,7 +540,7 @@ canvas.addEventListener('contextmenu', (ev) => {
 });
 
 function nextLevel() {
-  if (playtest || !game?.isSolved() || revealed) return;
+  if (playtest || !game?.isSolved()) return;
   if (index + 1 < book.levels.length) startLevel(index + 1);
 }
 
@@ -659,7 +657,7 @@ async function boot() {
     return;
   }
   const asked = parseInt(location.hash.slice(1), 10) - 1;
-  startLevel(Number.isFinite(asked) && isOpenLevel(asked) ? asked : resumeAt());
+  startLevel(Number.isFinite(asked) && book.levels[asked] ? asked : resumeAt());
 }
 
 boot();

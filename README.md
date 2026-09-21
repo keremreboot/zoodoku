@@ -37,7 +37,8 @@ is no undo: the only thing it could take back is a strike.
 
 Levels are curated. Each one was generated in the level editor, looked at by a
 person, playtested and locked in — the game never makes up a board of its own.
-They are played in order, and each opens once the one before it is finished.
+Every level is open from the start; they are meant to be played in order, and
+the level list ticks off the ones finished.
 
 They are arranged as a funnel. The first four are small, every card is one
 short, positive fact — *I'm in a corner of the board*, *I'm next to the tent* —
