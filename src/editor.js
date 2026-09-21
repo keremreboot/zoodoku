@@ -29,11 +29,24 @@ const ui = {};
 for (const id of [
   'slot', 'suggest', 'N', 'NOut', 'lands', 'landsOut', 'tier', 'tierOut', 'tierHint',
   'vocab', 'vocabOut', 'vocabHint', 'perCard', 'perCardOut', 'spare', 'spareOut', 'coords',
+  'landmarks', 'landmarksOut', 'varied',
   'generate', 'playtest', 'lock', 'genStatus', 'previewTitle', 'answers', 'stage', 'stats',
   'deals', 'count', 'funnel', 'book', 'saveStatus', 'download',
 ]) {
   ui[id] = document.getElementById(id);
 }
+
+/** Short names for kinds of sentence, for the "most said" figure. */
+const SAID = {
+  touch: 'next to', notTouch: 'not next to', corners: 'diagonal', notCorners: 'not diagonal',
+  sameRow: 'same row', notSameRow: 'not same row', sameCol: 'same column', notSameCol: 'not same column',
+  above: 'above', below: 'below', leftOf: 'left of', rightOf: 'right of', steps: 'steps',
+  zoneTouch: 'lands border', rim: 'on an edge', inland: 'not on an edge', corner: 'corner',
+  notCorner: 'not in a corner', side: 'on an edge', notSide: 'not on an edge',
+  top: 'half', bottom: 'half', left: 'half', right: 'half', zoneEdge: 'next to another land',
+  zoneCore: 'surrounded', nearLand: 'next to a colour', notNearLand: 'not next to a colour',
+  biggest: 'biggest', smallest: 'smallest', notBiggest: 'not biggest', inRow: 'row', inColumn: 'column',
+};
 
 const view = new View(ui.stage);
 view.crossOut = false; // answers are shown all at once; crossing out would bury them
@@ -58,6 +71,8 @@ function readSpec() {
     vocab: Number(ui.vocab.value),
     perCard: Number(ui.perCard.value),
     spare: Number(ui.spare.value),
+    landmarks: Number(ui.landmarks.value),
+    varied: ui.varied.checked,
     coords: ui.coords.checked,
   };
 }
@@ -69,6 +84,8 @@ function writeSliders(spec) {
   ui.vocab.value = String(spec.vocab);
   ui.perCard.value = String(spec.perCard);
   ui.spare.value = String(spec.spare);
+  ui.landmarks.value = String(spec.landmarks ?? 0);
+  ui.varied.checked = !!spec.varied;
   ui.coords.checked = !!spec.coords;
   syncLabels();
 }
@@ -96,9 +113,10 @@ function syncLabels() {
   ui.vocabHint.textContent = `${VOCABULARY[spec.vocab].blurb[0].toUpperCase()}${VOCABULARY[spec.vocab].blurb.slice(1)}.`;
   ui.perCardOut.textContent = String(spec.perCard);
   ui.spareOut.textContent = String(spec.spare);
+  ui.landmarksOut.textContent = String(spec.landmarks);
 }
 
-for (const el of [ui.lands, ui.tier, ui.vocab, ui.perCard, ui.spare, ui.coords]) {
+for (const el of [ui.lands, ui.tier, ui.vocab, ui.perCard, ui.spare, ui.landmarks, ui.varied, ui.coords]) {
   el.addEventListener('input', syncLabels);
 }
 ui.N.addEventListener('input', () => {
@@ -172,6 +190,7 @@ function advice(spec) {
   if (spec.vocab === 0 && spec.N >= 7) {
     tips.push('a wider vocabulary (plain clues can’t pin the middle of a big board)');
   }
+  if (spec.tier === 0 && spec.landmarks < 3) tips.push('more landmarks');
   if (spec.perCard < 3) tips.push('more sentences per card');
   if (spec.tier < 2) tips.push('letting clues lean on each other more');
   if (spec.vocab < 2 && !tips[0]?.startsWith('a wider')) tips.push('a wider vocabulary');
@@ -203,6 +222,8 @@ function show(level, at) {
     ['Words', VOCABULARY[level.spec.vocab].name],
     ['Sentences', s.sentences],
     ['Spare', spare],
+    ['Landmarks', s.landmarks],
+    ['Most said', s.repeats?.most.kind ? `“${SAID[s.repeats.most.kind] ?? s.repeats.most.kind}” ×${s.repeats.most.uses}` : '–'],
   ];
   bits.forEach(([label, value], k) => {
     if (k) ui.stats.append(' · ');

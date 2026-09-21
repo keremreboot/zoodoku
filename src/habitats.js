@@ -94,3 +94,14 @@ export function pickLands(rng, n = 3, gap = 60) {
   }
   return LANDS.slice(0, n);
 }
+
+/**
+ * Fixed things on the board. A landmark is there from the first deal and never
+ * moves, so anything an animal says about one -- "I'm next to the tree" -- can
+ * be read on its own, before any other animal is placed. That makes them the
+ * main source of variety for levels where every animal must stand alone.
+ *
+ * Nothing stands on a landmark. Each is Unicode 12 or older, like the animals,
+ * and none shares a name with an animal or a land.
+ */
+export const LANDMARKS = ['🌳 tree', '⛺ tent', '🌵 cactus', '🍄 mushroom', '🌻 sunflower', '⛲ fountain'];

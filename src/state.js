@@ -1,10 +1,11 @@
 // Board state and rule checking. No rendering in here.
 //
-// Two rules bind every placement, and they are the mechanical ones the game
+// Three rules bind every placement, and they are the mechanical ones the game
 // enforces for you rather than the ones you have to think about: an animal only
-// goes in a land of its own colour, and a land takes one animal and no more.
-// A drop that breaks either is simply refused -- the board shows those squares
-// as unavailable, so trying one is a slip of the hand, not a wrong answer.
+// goes in a land of its own colour, a land takes one animal and no more, and
+// nothing stands on a landmark. A drop that breaks one is simply refused -- the
+// board shows those squares as unavailable, so trying one is a slip of the
+// hand, not a wrong answer.
 //
 // Everything else is judged, and judged at once. A drop on a legal square that
 // is not the animal's own costs a strike and the animal stays in hand. That is
@@ -31,6 +32,7 @@ export class Game {
     this.zones = puzzle.zones;
     this.rounds = puzzle.rounds;
 
+    this.landmarks = puzzle.landmarks ?? [];
     this.pos = new Int32Array(this.animals.length).fill(NOWHERE);
     this.round = 0;
     this.strikes = 0;
@@ -66,10 +68,15 @@ export class Game {
     return NOWHERE;
   }
 
-  /** Allowed by the mechanical rules -- right colour, free land. Says nothing about right or wrong. */
+  landmarkAt(cell) {
+    return this.landmarks.find((l) => l.cell === cell) ?? null;
+  }
+
+  /** Allowed by the mechanical rules -- right colour, free land, no landmark. Says nothing about right or wrong. */
   canPlace(id, cell) {
     if (cell < 0 || cell >= this.R.cells) return false;
     if (!this.isInHand(id) || this.isPlaced(id)) return false;
+    if (this.landmarkAt(cell)) return false;
     const zone = this.zones.zoneOf[cell];
     if (this.puzzle.zoneLand[zone] !== this.animals[id].land) return false;
     return this.occupantOfZone(zone) === NOWHERE;

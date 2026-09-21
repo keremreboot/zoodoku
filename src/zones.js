@@ -51,18 +51,48 @@ function snakeOrder(R) {
   return order;
 }
 
+/** Land sizes as even as the squares allow: a square or two either way. */
+export function evenSizes(cells, count, rng) {
+  const base = Math.floor(cells / count);
+  const spare = cells % count;
+  // whoever gets the odd square out is a coin toss, not always the first lands
+  return shuffle(range(count).map((z) => base + (z < spare ? 1 : 0)), rng);
+}
+
+/**
+ * Land sizes spread out on purpose, so one land can plainly be the biggest of
+ * its colour. Around the even size, the spread is about a third of it either
+ * way -- enough to see at a glance, never so much that a land shrinks to a
+ * sliver: none goes below three squares. The sizes still add up to the board.
+ */
+export function variedSizes(cells, count, rng) {
+  const base = cells / count;
+  const reach = Math.max(1, Math.round(base * 0.35));
+  const sizes = range(count).map((k) => {
+    const t = count === 1 ? 0 : (k / (count - 1)) * 2 - 1; // -1 .. 1, evenly
+    return Math.max(3, Math.round(base + t * reach));
+  });
+  // settle the rounding against the board, taking from the biggest and giving
+  // to the smallest so the spread survives
+  let diff = cells - sizes.reduce((a, b) => a + b, 0);
+  while (diff !== 0) {
+    const order = sizes.map((n, k) => [n, k]).sort((x, y) => x[0] - y[0]);
+    const [, k] = diff > 0 ? order[0] : order[order.length - 1];
+    if (diff < 0 && sizes[k] <= 3) break;
+    sizes[k] += Math.sign(diff);
+    diff -= Math.sign(diff);
+  }
+  return shuffle(sizes, rng);
+}
+
 /**
  * @param {number} count how many lands to cut the board into
+ * @param {number[]} [sizes] how big each should be; even if left out
  * @param {number} rounds swap attempts per square; more means rounder lands
  */
-export function makeZones(R, count, rng, rounds = 90) {
+export function makeZones(R, count, rng, sizes = evenSizes(R.cells, count, rng), rounds = 90) {
   const zoneOf = new Int8Array(R.cells);
   const order = snakeOrder(R);
-
-  const base = Math.floor(R.cells / count);
-  const spare = R.cells % count;
-  // whoever gets the odd square out is a coin toss, not always the first lands
-  const sizes = shuffle(range(count).map((z) => base + (z < spare ? 1 : 0)), rng);
   let at = 0;
   for (let z = 0; z < count; z++) {
     for (let k = 0; k < sizes[z]; k++) zoneOf[order[at++]] = z;

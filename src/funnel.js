@@ -10,6 +10,9 @@
 //     you where the next goes;
 //   - "together", where animals pin each other before any is placed, comes
 //     last, and only on boards big enough to need it;
+//   - landmarks carry the early levels: they are fixed from the start, so an
+//     animal can describe itself by them without leaning on another animal,
+//     and they give a standalone card far more to say than edges and corners;
 //   - one thing changes at a time where possible, and spare clues are taken
 //     away just before something new is added, so each step is either a new
 //     idea or the same idea with less help, never both.
@@ -21,16 +24,16 @@
 import { DEFAULT_SPEC } from './generate.js';
 
 export const FUNNEL = [
-  { N: 5, lands: 3, tier: 0, vocab: 0, spare: 1 },
-  { N: 5, lands: 3, tier: 0, vocab: 0, spare: 0 },
-  { N: 6, lands: 6, tier: 0, vocab: 0, spare: 1 },
-  { N: 6, lands: 6, tier: 0, vocab: 1, spare: 0 },
-  { N: 6, lands: 6, tier: 1, vocab: 0, spare: 1 },
-  { N: 7, lands: 6, tier: 1, vocab: 1, spare: 1 },
-  { N: 7, lands: 9, tier: 1, vocab: 1, spare: 0 },
-  { N: 8, lands: 9, tier: 2, vocab: 1, spare: 1 },
-  { N: 8, lands: 9, tier: 2, vocab: 2, spare: 0 },
-  { N: 9, lands: 12, tier: 2, vocab: 2, spare: 0 },
+  { N: 5, lands: 3, tier: 0, vocab: 0, spare: 1, landmarks: 2 },
+  { N: 5, lands: 3, tier: 0, vocab: 0, spare: 0, landmarks: 2 },
+  { N: 6, lands: 6, tier: 0, vocab: 0, spare: 1, landmarks: 2 },
+  { N: 6, lands: 6, tier: 0, vocab: 1, spare: 0, landmarks: 2 },
+  { N: 6, lands: 6, tier: 1, vocab: 0, spare: 1, landmarks: 2 },
+  { N: 7, lands: 6, tier: 1, vocab: 1, spare: 1, landmarks: 2 },
+  { N: 7, lands: 9, tier: 1, vocab: 1, spare: 0, landmarks: 2 },
+  { N: 8, lands: 9, tier: 2, vocab: 1, spare: 1, landmarks: 1 },
+  { N: 8, lands: 9, tier: 2, vocab: 2, spare: 0, landmarks: 1 },
+  { N: 9, lands: 12, tier: 2, vocab: 2, spare: 0, landmarks: 1 },
 ].map((step) => ({ ...DEFAULT_SPEC, ...step }));
 
 /** Settings for the level at this position (0-based); past the end, the hardest. */

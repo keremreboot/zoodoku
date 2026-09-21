@@ -62,6 +62,17 @@ function paperTile(color, amount = 18) {
   return cv;
 }
 
+/** A rounded square path -- by hand, since ctx.roundRect is too new for older phones. */
+function roundedSquare(ctx, x, y, side, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + side, y, x + side, y + side, r);
+  ctx.arcTo(x + side, y + side, x, y + side, r);
+  ctx.arcTo(x, y + side, x, y, r);
+  ctx.arcTo(x, y, x + side, y, r);
+  ctx.closePath();
+}
+
 export class View {
   constructor(canvas) {
     this.canvas = canvas;
@@ -91,6 +102,7 @@ export class View {
     this.carry = null;
     this.hover = -1;
     this.spotlight = new Set();
+    this.spotlightMarks = new Set();
     this.tokens = game.animals.map(() => ({ s: 0 }));
     this.misses = [];
     this.labels = this.placeLabels(game);
@@ -117,9 +129,11 @@ export class View {
       mc /= cells.length;
       let best = cells[0];
       let bestScore = Infinity;
+      const marked = new Set(game.landmarks.map((l) => l.cell));
       for (const i of cells) {
         const open = neighbours(R, i).filter((n) => game.zones.zoneOf[n] === z).length;
-        const d = Math.hypot(R.row(i) - mr, R.col(i) - mc) + (4 - open) * 0.45;
+        const d =
+          Math.hypot(R.row(i) - mr, R.col(i) - mc) + (4 - open) * 0.45 + (marked.has(i) ? 99 : 0);
         if (d < bestScore) {
           bestScore = d;
           best = i;
@@ -153,9 +167,10 @@ export class View {
     this.hover = cell;
   }
 
-  /** Animals a clue is talking about, ringed so the sentence has something to point at. */
-  setSpotlight(ids) {
+  /** Animals and landmarks a clue is talking about, ringed so the sentence has something to point at. */
+  setSpotlight(ids, marks = []) {
     this.spotlight = new Set(ids);
+    this.spotlightMarks = new Set(marks);
   }
 
   /** Flash a square red: something was dropped there and it was wrong. */
@@ -226,6 +241,7 @@ export class View {
     this.drawGrid(ctx);
     this.drawLabels(ctx);
     if (this.crossOut) this.drawDead(ctx);
+    this.drawLandmarks(ctx);
     this.drawHover(ctx);
     this.drawMisses(ctx);
     this.drawTokens(ctx);
@@ -382,7 +398,7 @@ export class View {
     ctx.lineCap = 'round';
     ctx.beginPath();
     for (let i = 0; i < R.cells; i++) {
-      if (!taken.has(zoneOf[i]) || this.game.pos.includes(i)) continue;
+      if (!taken.has(zoneOf[i]) || this.game.pos.includes(i) || this.game.landmarkAt(i)) continue;
       const x = this.px(R.col(i));
       const y = this.py(R.row(i));
       ctx.moveTo(x + inset, y + inset);
@@ -392,6 +408,36 @@ export class View {
     }
     ctx.stroke();
     ctx.restore();
+  }
+
+  /**
+   * Landmarks sit on a small square plaque, where animals sit in circles, so a
+   * glance tells the two apart: one is scenery, the other is the puzzle.
+   */
+  drawLandmarks(ctx) {
+    const S = this.S;
+    for (const [m, mark] of this.game.landmarks.entries()) {
+      const x = this.px(this.R.col(mark.cell));
+      const y = this.py(this.R.row(mark.cell));
+      const inset = S * 0.12;
+      const side = S - inset * 2;
+      ctx.save();
+      if (this.spotlightMarks.has(m)) {
+        ctx.fillStyle = PALETTE.ink;
+        ctx.globalAlpha = 0.16;
+        ctx.fillRect(x + inset * 0.2, y + inset * 0.2, S - inset * 0.4, S - inset * 0.4);
+        ctx.globalAlpha = 1;
+      }
+      ctx.fillStyle = PALETTE.paper;
+      ctx.strokeStyle = PALETTE.muted;
+      ctx.lineWidth = Math.max(1, S * 0.025);
+      roundedSquare(ctx, x + inset, y + inset, side, S * 0.12);
+      ctx.fill();
+      ctx.stroke();
+      const size = side * 0.82;
+      ctx.drawImage(iconSprite(mark.icon), x + (S - size) / 2, y + (S - size) / 2, size, size);
+      ctx.restore();
+    }
   }
 
   drawHover(ctx) {

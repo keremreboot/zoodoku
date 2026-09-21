@@ -671,3 +671,10 @@ button.ghost {
     font-size: 0.84rem;
   }
 }
+
+/* the key's landmark row: scenery, not a colour, so no colour band */
+.legend-row.landmarks {
+  --band: var(--muted);
+  --wash: transparent;
+  border-left-style: dotted;
+}

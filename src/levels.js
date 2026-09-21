@@ -12,7 +12,7 @@
 
 import { LANDS } from './habitats.js';
 import { describeZones } from './zones.js';
-import { sentenceCount, COORDS } from './clues.js';
+import { COORDS, boardContext, chunks, sentenceCount } from './clues.js';
 import { TIERS, tierNeeded } from './deduce.js';
 import { makeRules } from './util.js';
 
@@ -24,17 +24,44 @@ export const FORMAT = 1;
 
 const newId = () => Math.random().toString(36).slice(2, 8) + Date.now().toString(36).slice(-4);
 
-/** Squares each animal of a deal could legally take: its colour, in a land still empty. */
+/**
+ * Squares each animal of a deal could legally take: its colour, in a land
+ * still empty, and not under a landmark.
+ */
 export function candidates(puzzle, deal) {
+  const blocked = new Set(puzzle.landmarks.map((l) => l.cell));
   return deal.animals.map((id) => {
     const out = [];
     for (let z = 0; z < puzzle.zones.count; z++) {
-      if (puzzle.zoneLand[z] === puzzle.animals[id].land && puzzle.zoneRound[z] >= deal.round) {
-        out.push(...puzzle.zones.zoneCells[z]);
-      }
+      if (puzzle.zoneLand[z] !== puzzle.animals[id].land || puzzle.zoneRound[z] < deal.round) continue;
+      for (const i of puzzle.zones.zoneCells[z]) if (!blocked.has(i)) out.push(i);
     }
     return out;
   });
+}
+
+/**
+ * What a level repeats itself on: the kind of sentence said most often, and
+ * how many times. A folded corner ("I'm in a bottom corner") counts as a
+ * corner. The editor shows this so a level that says one thing over and over
+ * can be spotted before it is locked in.
+ */
+function repetition(puzzle) {
+  const uses = new Map();
+  for (const deal of puzzle.deals) {
+    for (const id of deal.animals) {
+      for (const part of chunks(deal.clues.filter((cl) => cl.a === id), puzzle.ctx)) {
+        const kinds = part.clues.map((cl) => cl.k);
+        const shape = kinds.includes('corner') || (kinds.length > 1 && kinds.every((k) => k === 'side'))
+          ? 'corner'
+          : kinds[0];
+        uses.set(shape, (uses.get(shape) || 0) + 1);
+      }
+    }
+  }
+  let most = { kind: null, uses: 0 };
+  for (const [kind, n] of uses) if (n > most.uses) most = { kind, uses: n };
+  return { kinds: uses.size, most };
 }
 
 /**
@@ -75,6 +102,8 @@ export function measure(puzzle) {
   const weight = deals.reduce((s, d) => s + d.bits * (1 + 0.5 * Math.max(0, d.tier)) - 4 * d.spare, 0);
   return {
     deals,
+    repeats: repetition(puzzle),
+    landmarks: puzzle.landmarks.length,
     tier: Math.max(...deals.map((d) => d.tier)),
     tierName: TIERS[Math.max(...deals.map((d) => d.tier))]?.name ?? 'unsolvable',
     sentences: deals.reduce((s, d) => s + d.sentences, 0),
@@ -101,10 +130,11 @@ export function serializeLevel(puzzle, meta = {}) {
       cell: a.cell,
       round: a.round,
     })),
+    landmarks: puzzle.landmarks.map(({ icon, name, cell }) => ({ icon, name, cell })),
     deals: puzzle.deals.map((d) => ({
       animals: [...d.animals],
       spare: d.spare ?? 0,
-      clues: d.clues.map(({ k, a, b, n }) => ({ k, a, b, n })),
+      clues: d.clues.map(({ k, a, b, n, m }) => (m != null && m >= 0 ? { k, a, b, n, m } : { k, a, b, n })),
     })),
     stats: measure(puzzle),
   };
@@ -141,7 +171,9 @@ export function puzzleFromLevel(level) {
     clues: d.clues,
     spare: d.spare ?? 0,
   }));
-  const ctx = { R, zoneOf, zoneAdj: zones.zoneAdj, zoneLand, lands, animals };
+  // levels locked before landmarks existed simply have none
+  const landmarks = (level.landmarks ?? []).map(({ icon, name, cell }) => ({ icon, name, cell }));
+  const ctx = boardContext({ R, zones, zoneLand, lands, animals, landmarks });
 
   return {
     id: level.id,
@@ -153,6 +185,7 @@ export function puzzleFromLevel(level) {
     zoneLand,
     zoneRound,
     animals,
+    landmarks,
     deals,
     ctx,
     rounds: deals.length,

@@ -168,8 +168,22 @@ function buildLegend() {
 
       row.append(name, cast);
       return row;
-    })
+    }),
+    ...(game.landmarks.length ? [landmarkRow()] : [])
   );
+}
+
+function landmarkRow() {
+  const row = document.createElement('div');
+  row.className = 'legend-row landmarks';
+  const name = document.createElement('span');
+  name.className = 'legend-name';
+  name.textContent = 'Landmarks';
+  const list = document.createElement('span');
+  list.className = 'legend-cast';
+  list.textContent = game.landmarks.map((l) => `${l.icon} ${l.name}`).join('   ');
+  row.append(name, list);
+  return row;
 }
 
 /**
@@ -277,15 +291,17 @@ function cardFor(animal) {
   return el;
 }
 
-/** Animals the carried one is talking about, so the sentence has something to point at. */
+/** Animals and landmarks the carried one is talking about, so the sentence has something to point at. */
 function spotlightFor(id) {
-  if (id == null || !game.deal) return [];
-  const out = new Set();
+  const animals = new Set();
+  const marks = new Set();
+  if (id == null || !game.deal) return { animals: [], marks: [] };
   for (const cl of game.deal.clues) {
-    if (cl.a === id && cl.b >= 0) out.add(cl.b);
-    if (cl.b === id) out.add(cl.a);
+    if (cl.a === id && cl.b >= 0) animals.add(cl.b);
+    if (cl.a === id && cl.m != null && cl.m >= 0) marks.add(cl.m);
+    if (cl.b === id) animals.add(cl.a);
   }
-  return [...out];
+  return { animals: [...animals], marks: [...marks] };
 }
 
 function drawStrikes() {
@@ -338,7 +354,8 @@ function refresh() {
 
   if (carry == null) view.setHover(-1);
   view.setCarry(carry);
-  view.setSpotlight(spotlightFor(carry));
+  const lit = spotlightFor(carry);
+  view.setSpotlight(lit.animals, lit.marks);
   mark();
 }
 
@@ -350,6 +367,8 @@ function refresh() {
  */
 function refusal(id, cell) {
   const animal = game.animals[id];
+  const mark = game.landmarkAt(cell);
+  if (mark) return `the ${mark.name} is there`;
   if (game.puzzle.zoneLand[game.zones.zoneOf[cell]] !== animal.land) {
     return `only in ${game.puzzle.lands[animal.land].name}`;
   }

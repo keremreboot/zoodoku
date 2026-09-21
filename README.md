@@ -2,10 +2,10 @@
 
 Three animals arrive at once, one of each colour, and each may only be settled
 in a land of its own colour. That alone leaves them dozens of squares to choose
-between. What settles it is what they say — *I'm in a corner*, *I'm next to
-Desert*, *I'm next to the fish and the lion* — and every deal is built so that
-exactly one arrangement of the three can be true, and can be found without a
-single guess.
+between. What settles it is what they say — *I'm next to the tree*, *I'm in
+the biggest Meadow*, *I'm not on the top edge*, *I'm next to the fish and the
+lion* — and every deal is built so that exactly one arrangement of the three can
+be true, and can be found without a single guess.
 
 Deals keep coming until every land has its animal. Levels get harder as you go.
 
@@ -16,6 +16,7 @@ Deals keep coming until every land has its animal. Levels get harder as you go.
 - An animal is settled in a land of its own colour. Nothing else will take it.
 - A land holds one animal and no more. Once it has one, the rest of the land is
   crossed out.
+- Nothing stands on a landmark — the 🌳 tree, the ⛺ tent and the rest.
 - Every clue on the three cards must end up true.
 - A wrong square costs a strike, and the animal stays in hand. Five strikes and
   the level starts over — the same level, not a new one.
@@ -26,8 +27,9 @@ and every deal can be solved from them by elimination alone, so every wrong
 square could have been ruled out before you committed to it. A strike is never
 bad luck.
 
-Squares the board greys out — the wrong colour, or a land that already has its
-animal — are not wrong answers. Dropping on one is refused and costs nothing.
+Squares the board greys out — the wrong colour, a land that already has its
+animal, or a landmark — are not wrong answers. Dropping on one is refused and
+costs nothing.
 Nothing wrong ever lands, so an animal locks the moment it is placed, and there
 is no undo: the only thing it could take back is a strike.
 
@@ -53,21 +55,23 @@ shows the same list word for word:
 
 | The animal says | It means exactly |
 | --- | --- |
-| I'm next to the fox. | Our squares share a side. Touching only at a corner doesn't count. |
-| I'm not next to the fox. | Our squares don't share a side. We may still be diagonal. |
-| I'm diagonal to the fox. | Our squares touch at one corner and nothing else. |
-| I'm in the fox's row (column). | Same row (column), any distance apart. |
+| I'm (not) next to the fox. | Our squares share a side. Touching only at a corner doesn't count. |
+| I'm (not) diagonal to the fox. | Our squares touch at one corner and nothing else. |
+| I'm (not) in the fox's row (column). | Same row (column), any distance apart. |
 | I'm above (below) the fox. | Anywhere in a higher (lower) row. Columns don't matter. |
 | I'm left (right) of the fox. | Anywhere in a column further left (right). Rows don't matter. |
 | I'm 3 steps from the fox. | Count moves up, down, left or right. A diagonal neighbour is 2 steps. |
 | My land borders the fox's land. | A square of my land shares a side with a square of the fox's. |
+| I'm next to the 🌳 tree. | Anything said about an animal can be said about a landmark, and means the same. |
 | I'm (not) on an edge. | The edge is the outer ring of squares. |
-| I'm on the top edge. | The top row (and likewise right, bottom, left). A corner is on two edges. |
-| I'm in a corner. | One of the four corners — or *a bottom corner*, *the top-left corner*. |
+| I'm (not) on the top edge. | The top row (and likewise right, bottom, left). A corner is on two edges. |
+| I'm on an edge, but not the top one. | Both of the above at once. |
+| I'm (not) in a corner. | One of the four corners — or *a bottom corner*, *the top-left corner*. |
 | I'm in the top half. | On an odd board the middle row (column) is in neither half. |
 | I'm next to another land. | A side-neighbour is in a different land. The board's edge doesn't count. |
 | I'm surrounded by my own land. | All four side-neighbours are in my land, so I'm not on an edge. |
 | I'm (not) next to Desert. | A side-neighbour is (none is) in a Desert land. Only other colours are named. |
+| I'm in the biggest (smallest) Meadow. | More (fewer) squares than any other Meadow, landmarks counted. Or *not the biggest*. |
 | I'm in row 3 (column 3). | Counted from 1 at the top or left. Off unless a level asks for it. |
 
 Clues are short on purpose, and a card never carries more than a set number of
@@ -79,7 +83,25 @@ beside the code that evaluates each clue, and the audit fails if any kind of
 clue is missing from the list.
 
 Several clues from one animal fold into one sentence: *I'm next to the fish and
-the lion*, *I'm in a bottom corner*.
+the tree*, *I'm in a bottom corner*, *I'm on an edge, but not the right one*.
+
+### Landmarks
+
+Two or three fixed things on the board — 🌳 tree, ⛺ tent, 🌵 cactus, 🍄
+mushroom, 🌻 sunflower, ⛲ fountain. They are there from the first deal and never
+move, so anything an animal says about one can be read on its own card, before
+any other animal is placed. That makes them the main source of variety in the
+early levels, where every animal must stand alone and would otherwise have
+little to describe itself by but edges and corners.
+
+### Saying it once
+
+A level that says the same kind of thing over and over is a level with one idea
+in it. The generator weighs repetition heavily when it picks clues — most of all
+within a deal, where repeats sit side by side — and the editor shows what each
+level says most often, so a repetitive one can be rerolled before it is locked
+in. Across the first five starter levels the most common kind of sentence is
+15% of what is said; before landmarks, "I'm on the ___ edge" alone was 30%.
 
 Clues are only ever about one or two fixed squares — never a tally of who is
 nearby. Animals arrive over several deals, so "nothing is next to me" would be
@@ -138,6 +160,9 @@ Nothing is typed by hand. The sliders set:
   *Lines* (adds rows, columns, above and below, halves, diagonals) or
   *Counting* (adds step distances and bordering lands).
 - **Most sentences on a card** — keeps cards short.
+- **Landmarks** — 0 to 3 fixed things animals can mention.
+- **Varied land sizes** — lands of clearly different sizes, so one can be *the
+  biggest Meadow*. Off, every land is within a square of the others.
 - **Spare clues per deal** — true facts the deal didn't need, as help.
 - **Row and column clues** — off unless you want them.
 
@@ -149,7 +174,7 @@ of a big board in two sentences, for instance, and the editor says so rather
 than handing back something wordier.
 
 The preview shows the answers and every card, deal by deal, with what each
-deal actually demands. **Playtest** opens it in the game in a new tab.
+deal actually demands and what the level says most often. **Playtest** opens it in the game in a new tab.
 **Lock in** puts it in the level list at the position chosen, and saves.
 
 Above the list is the funnel: one bar per level, as tall as its difficulty. A
@@ -180,18 +205,24 @@ adding one can only narrow the player's options towards the answer.
 
 Clues are then chosen greedily. At each step the generator adds whichever clue
 lets elimination, at the level's leaning, cross off the most — nudged towards
-plain kinds, away from repeating itself, and away from leaning on another animal
-when a fact that stands alone would do as well — and stops once every animal is
-on its square. A clue elimination can't use yet makes no progress, so it is
-never picked for that. Then each chosen clue is dropped if the others can do its
-work, and spare clues are added only if nothing already shown implies them.
-One answer comes free: the answer always survives elimination, because every
-clue is true of it.
+plain kinds, strongly away from repeating a kind the level has already used, and
+away from leaning on another animal when a fact that stands alone would do as
+well — and stops once every animal is on its square. A clue elimination can't
+use yet makes no progress, so it is never picked for that. Then each chosen
+clue is dropped if the others can do its work, and a spare clue is added only if
+the card, taken as a whole, does not already say it — "I'm in a corner" and "I'm
+not on the top edge" together already mean "I'm on the bottom edge". One answer
+comes free: the answer always survives elimination, because every clue is true
+of it.
 
-For deals that should stand alone, the animals are placed where a square is
-easy to describe on its own — along edges and in corners. For deals that lean,
-lands sharing a border are dealt together and the animals are stood near one
-another, which is what gives them something to say about each other.
+For deals that lean on each other, lands sharing a border are dealt together
+and the animals stood near one another, which is what gives them something to
+say about each other. For deals that stand alone the animals go anywhere, and
+the landmarks are set down near them afterwards — never on an animal's square,
+never two in one land — so that even a square in the middle of a land has
+something to be described by. "I'm in the biggest Meadow" is only said when the
+land beats every other Meadow by two squares or more: a one-square lead is true,
+but it asks the player to count carefully rather than to look.
 
 ### Lands
 
@@ -203,6 +234,11 @@ because consecutive squares in that ordering are always neighbours. Those runs
 are ribbons, so squares are then traded across borders to fatten them — one each
 way, which leaves both sizes untouched, kept only if both lands are still in one
 piece and the board's total border did not grow.
+
+Because the sizes are set before the cutting starts, varied lands cost nothing
+extra: the sizes are spread about a third either side of even (never below three
+squares), and colours are handed out three lands at a time from biggest to
+smallest, so every colour gets a big land and a small one.
 
 ### Why 9 × 9 is the largest board
 
@@ -272,7 +308,7 @@ that also prints a sample level, so you can read the clues as a player would.
 - `src/funnel.js` — suggested settings for each level
 - `src/levels.js` — writing levels down, reading them back, measuring them
 - `src/gen-worker.js` — runs the generator off the editor's main thread
-- `src/habitats.js` — the lands, their colours and the animals in them
+- `src/habitats.js` — the lands, their colours, the animals and the landmarks
 - `src/zones.js` — cutting the grid into connected lands of equal size
 - `src/state.js` — board state, placement and strikes
 - `src/view.js` — 2D canvas renderer

@@ -9,7 +9,8 @@
 //     other;
 //   - every deal has exactly one answer, by trying every arrangement;
 //   - every clue is true of the answer, and is a kind the key explains;
-//   - every land is whole and fairly sized, one animal to a land, right colour.
+//   - every land is whole and a fair size, one animal to a land, right colour;
+//   - no animal and no other landmark stands on a landmark.
 //
 // It audits two things. levels/levels.json, because those are the levels
 // players actually get -- locked, so a generator change cannot fix or break
@@ -113,15 +114,32 @@ function auditPuzzle(p, tier) {
   const known = new Set(ALL_KINDS);
 
   // --- lands ---------------------------------------------------------------
+  // Even lands are within a square of each other; varied ones are meant to
+  // differ, but none may shrink below three squares.
   const sizes = p.zones.zoneCells.map((c) => c.length);
   if (sizes.reduce((a, b) => a + b, 0) !== R.cells) problems.push('lands do not tile the board');
-  if (Math.max(...sizes) - Math.min(...sizes) > 1) problems.push(`ragged land sizes ${sizes}`);
+  if (p.spec?.varied) {
+    if (Math.min(...sizes) < 3) problems.push(`a land of ${Math.min(...sizes)} squares`);
+  } else if (Math.max(...sizes) - Math.min(...sizes) > 1) {
+    problems.push(`ragged land sizes ${sizes}`);
+  }
   for (let z = 0; z < p.zones.count; z++) {
     if (!connected(R, p.zones.zoneCells[z])) problems.push(`land ${z} is in pieces`);
   }
   const perLand = p.lands.map(() => 0);
   for (let z = 0; z < p.zones.count; z++) perLand[p.zoneLand[z]]++;
   if (new Set(perLand).size !== 1) problems.push(`colours share out unevenly ${perLand}`);
+
+  // --- landmarks: on the board, never under an animal or each other --------
+  const marked = new Set();
+  for (const mark of p.landmarks ?? []) {
+    if (mark.cell < 0 || mark.cell >= R.cells) problems.push(`the ${mark.name} is off the board`);
+    if (marked.has(mark.cell)) problems.push(`two landmarks on one square`);
+    marked.add(mark.cell);
+  }
+  for (const a of p.animals) {
+    if (marked.has(a.cell)) problems.push(`${a.name}'s square is under a landmark`);
+  }
 
   // --- one animal per land, right colour -----------------------------------
   const claimed = new Set();
@@ -149,10 +167,12 @@ function auditPuzzle(p, tier) {
   const stats = [];
   for (const deal of p.deals) {
     const r = deal.round;
+    // what the player may legally try: own colour, land still empty, no landmark
     const cand = deal.animals.map((id) => {
       const out = [];
       for (let z = 0; z < p.zones.count; z++) {
-        if (p.zoneLand[z] === p.animals[id].land && p.zoneRound[z] >= r) out.push(...p.zones.zoneCells[z]);
+        if (p.zoneLand[z] !== p.animals[id].land || p.zoneRound[z] < r) continue;
+        for (const i of p.zones.zoneCells[z]) if (!marked.has(i)) out.push(i);
       }
       return out;
     });
