@@ -1,9 +1,9 @@
 # Zoodoku
 
-Three animals arrive at once, one of each colour, and each may only be settled
-in a land of its own colour. That alone leaves them dozens of squares to choose
-between. What settles it is what they say — *I'm next to the tree*, *I'm in
-the biggest Meadow*, *I'm not on the board's top edge*, *I'm next to the
+Three animals arrive at once, usually one of each colour, and each may only be
+settled in a land of its own colour. That alone leaves them dozens of squares
+to choose between. What settles it is what they say — *I'm next to the tree*,
+*I'm in the biggest Meadow*, *I'm not on the board's top edge*, *I'm next to the
 fish and the lion* — and every deal is built so that exactly one arrangement of
 the three can be true, and can be found without a single guess.
 
@@ -39,14 +39,17 @@ Levels are curated. Each one was generated in the level editor, looked at by a
 person, playtested and locked in — the game never makes up a board of its own.
 They are played in order, and each opens once the one before it is finished.
 
-They are arranged as a funnel. The first are small, every card is one short,
-positive fact — *I'm in a corner of the board*, *I'm next to the tent* — and
-every animal can be placed from its own card. Then "not" arrives, still one
-fact to a card; then two facts to a card; then animals start to lean on one
-another, first one at a time, then all together, while the clues widen to rows,
-columns and distances. One thing changes at a time where possible, and spare
-clues are taken away just before something new arrives, so each level is either
-a new idea or the same idea with less help.
+They are arranged as a funnel. The first four are small, every card is one
+short, positive fact — *I'm in a corner of the board*, *I'm next to the tent* —
+and every animal can be placed from its own card. Then depth arrives: two facts
+to a card, neither of which says where the animal is by itself — *I'm on the
+board's right edge. I'm next to Ocean.* — first in the same simple words, then
+with "not". Then animals start to lean on one another, first one at a time,
+then deals bring two animals of one colour, then all together, while the clues
+widen to rows, columns and distances and each sentence gives away less. One
+thing changes at a time where possible, and spare clues are taken away just
+before something new arrives, so each level is either a new idea or the same
+idea with less help.
 
 Progress is kept by level id, not position, so levels added or moved later never
 hand anyone credit for the wrong one.
@@ -120,7 +123,9 @@ A level that says the same kind of thing over and over is a level with one idea
 in it. The generator weighs repetition heavily when it picks clues — most of all
 within a deal, where repeats sit side by side — and the editor shows what each
 level says most often, so a repetitive one can be rerolled before it is locked
-in. No starter level uses any kind of sentence more than twice.
+in. No starter level uses any kind of sentence more than twice, bar level 5:
+twelve sentences made from the five simple kinds must repeat one of them three
+times.
 
 Clues are only ever about one or two fixed squares — never a tally of who is
 nearby. Animals arrive over several deals, so "nothing is next to me" would be
@@ -130,7 +135,7 @@ the end.
 
 ## How easy the clues are to read
 
-Difficulty has two sides, and the first is how quickly a clue can be read and
+Difficulty has three sides, and the first is how quickly a clue can be read and
 understood. Clues come in four rungs, each adding to the one before:
 
 - **Simple** — one plain, positive fact you can see: a corner or edge of the
@@ -146,17 +151,60 @@ At the first two rungs a card is limited in facts, not sentences, and nothing is
 folded into a compound: the first levels carry one fact per card, averaging
 under six words. For those levels the animals are placed where one such fact
 picks them out — the only corner of their colour, the only square beside
-Desert — or beside a landmark placed so that "I'm next to the tree" does.
+Desert — or beside a landmark placed so that "I'm next to the tree" does. When
+animals stand alone with depth, the same is done with two facts: each animal
+goes where two broad ones meet — the one square on the board's right edge that
+is also next to Ocean.
 
 ## How much the clues lean on each other
 
-The other side is how much a deal's three animals depend on one another's
+The second side is how much a deal's three animals depend on one another's
 cards:
 
 - **Alone** — each animal can be placed from its own card. It may mention an
   animal already on the board, since that one is not going anywhere.
 - **In turn** — place one, and its position tells you where the next goes.
 - **Together** — animals pin each other before any of them is placed.
+
+### Two of one colour
+
+Most deals are one animal of each colour. From the middle levels on, some
+bring two of one — and then "a land takes one animal" stops being a rule the
+board enforces and becomes something to reason with. The goat's card fits only
+the big Meadow; the sheep's fits both Meadows; so the sheep is in the small one.
+Neither card had to say which land, and neither could have been placed from its
+own card alone.
+
+It leans on the other animal, so it follows the leaning like any fact about two
+animals: never *Alone*; *In turn*, once one is placed its land is closed to the
+other — exactly what the board shows by crossing that land out; *Together*,
+once every square left to one lies in a single land, that land is closed to
+the other before either is placed.
+
+They come two deals at a time. A level keeps as many lands of each colour as
+there are animals of it, so a deal that takes a second Meadow gives up its
+Ocean to another deal, which then has two Oceans.
+
+## How much one sentence gives away
+
+The third side of difficulty is depth. Left to itself, the generator reaches
+for the sharpest fact there is, and the sharpest fact names a square outright —
+*I'm in the board's top-left corner* — which leaves nothing to put together.
+The early levels want exactly that. After them, it gets in the way: each card
+turns into a set of directions rather than a puzzle.
+
+So from level 5, a level has a depth: no sentence, read on its own against
+every square the animal could take, may leave it fewer than that many squares.
+Each sentence draws a region; the animal is where the regions cross — two facts
+on its own card, a fact and where another animal turned out to be, or a fact
+and a land its twin has taken. Everything a card says about the same animal or
+landmark counts as one sentence here: *I'm next to the tent. I'm right of the
+tent.* is one square said in two halves, not two facts that meet. (An animal
+with only a few squares to begin with need only lose one.)
+
+Depth 2 arrives with two facts to a card; depth 3 with the bigger boards. It
+does not make cards wordier: across the levels from 5 on, cards carry about 1.7
+sentences each, and fewer of them say "not" than before depth existed.
 
 ## You never have to guess
 
@@ -175,7 +223,10 @@ So every deal has to be solvable by elimination alone:
    where the rooster stands. A square is crossed off when no square still open
    to the other animal fits with it. At *Alone* this step is not needed at all;
    at *In turn* it is used only once the other animal is down to one square.
-4. Repeat until nothing more falls. Each animal must be left with one square.
+4. Two animals of one colour can't share a land: once every square left to one
+   of them is in the same land, that land is crossed off for the other (at *In
+   turn*, only once it is down to one square).
+5. Repeat until nothing more falls. Each animal must be left with one square.
 
 What that never allows is supposing: "if the crab were here, the rooster would
 be there, and then the owl could not…" chained through all three animals is the
@@ -192,13 +243,17 @@ then open http://localhost:8137/editor.html.
 Nothing is typed by hand. The sliders set:
 
 - **Board** — 5 × 5 up to 9 × 9.
-- **Lands** — a multiple of three (one deal takes one land of each colour); it
-  decides how many deals the level has and how big each land is.
+- **Lands** — a multiple of three (one deal takes three lands); it decides how
+  many deals the level has and how big each land is.
 - **Clues lean on each other** — Alone, In turn or Together, as above.
 - **How easy clues are to read** — *Simple*, *Plain*, *Lines* or *Counting*,
   as above.
 - **Most facts (or sentences) on a card** — keeps cards short. At Simple and
   Plain it counts facts; from Lines up, sentences.
+- **Depth** — off, or the fewest squares any one sentence may leave an animal,
+  as above.
+- **Two of one colour** — how many deals bring two animals of one colour, two
+  deals at a time.
 - **Landmarks** — up to 3 fixed things animals can mention. Any the level's
   clues don't mention are taken away, so a level may end up with fewer.
 - **Varied land sizes** — lands of clearly different sizes, so one can be *the
@@ -248,7 +303,9 @@ lets elimination, at the level's leaning, cross off the most — nudged towards
 plain kinds, strongly away from repeating a kind the level has already used, and
 away from leaning on another animal when a fact that stands alone would do as
 well — and stops once every animal is on its square. A clue elimination can't
-use yet makes no progress, so it is never picked for that. Then each chosen
+use yet makes no progress, so it is never picked for that. At a level with
+depth, a clue that would make any sentence on its card too sharp is never
+offered, so greedy cannot reach for the one fact that names the square. Then each chosen
 clue is dropped if the others can do its work, and a spare clue is added only if
 the card, taken as a whole, does not already say it — "I'm in a corner of the
 board" and "I'm not on the top edge" together already mean "I'm on the bottom

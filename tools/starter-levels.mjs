@@ -1,8 +1,9 @@
 // Rebuild the starter levels: one per funnel step, overwriting levels/levels.json.
 //
-// For each step it generates up to ten candidates, keeps only those that need the
-// step's tier (a step introducing "in turn" must actually need it) and never dip
-// below the previous level's difficulty, then picks the most varied: fewest
+// For each step it generates up to thirty candidates, keeps only those that need the
+// step's tier (a step introducing "in turn" must actually need it), prefers ones
+// whose two-of-a-colour deals actually need both lands, never dips below the
+// previous level's difficulty, then picks the most varied: fewest
 // repeats of any one kind of sentence, then the most kinds. Deterministic seeds,
 // so a rerun gives the same levels until the generator changes.
 //
@@ -23,7 +24,7 @@ const book = emptyBook();
 let floor = 0;
 FUNNEL.forEach((spec, step) => {
   const built = [];
-  for (let s = 0; built.length < 10 && s < 80; s++) {
+  for (let s = 0; built.length < 30 && s < 120; s++) {
     const seed = 20260923 + step * 1000 + s;
     const p = makeLevel(makeRules(spec.N), spec, mulberry32(seed));
     if (!p) continue;
@@ -33,6 +34,14 @@ FUNNEL.forEach((spec, step) => {
   // a step that introduces a tier must actually need it, or it teaches nothing
   const needing = built.filter((lv) => lv.stats.tier === spec.tier);
   if (needing.length) built.splice(0, built.length, ...needing);
+  // and two of a colour should matter: every such deal needing "a land takes
+  // one" if possible, at least one if not
+  if (spec.pairs) {
+    const every = built.filter((lv) => lv.stats.pairsUsed === lv.stats.pairDeals);
+    const some = built.filter((lv) => lv.stats.pairsUsed > 0);
+    const keep = every.length ? every : some;
+    if (keep.length) built.splice(0, built.length, ...keep);
+  }
   built.sort(
     (x, y) =>
       x.stats.repeats.most.uses - y.stats.repeats.most.uses ||

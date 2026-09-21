@@ -27,6 +27,15 @@
 // What no tier ever does is suppose: chaining "if the crab were here, the
 // rooster would be there, and then the owl could not..." through all three is
 // the guessing the rule forbids.
+//
+// A deal can hold two animals of one colour, and then the rule that a land
+// takes one animal is something to reason with, not just something the board
+// enforces. It leans on the other animal, so it follows the tier like any fact
+// about two animals: in turn, a placed animal's land is closed to its twin --
+// exactly what the board shows by crossing that land out -- and together, an
+// animal whose every open square lies in one land closes that land to its twin
+// before either is placed. "The goat can only be in the big Meadow, so the
+// sheep is in the other one."
 
 import { holds } from './clues.js';
 
@@ -60,15 +69,28 @@ export function groupClues(clues, subs) {
  * @param open  one array of candidate squares per animal of the deal
  * @param pos   scratch positions for every animal; earlier deals already filled in
  * @param tier  how much the deal's animals may lean on each other (see TIERS)
+ * @param oneLand  use "a land takes one animal" between animals of one colour
  * @returns the narrowed candidate lists (the input is left alone)
  */
-export function narrow(open, groups, ctx, pos, subs, tier = 2) {
+export function narrow(open, groups, ctx, pos, subs, tier = 2, oneLand = true) {
   const dom = open.map((cells) => cells.slice());
   const fits = (clues) => clues.every((cl) => holds(cl, ctx, pos) === true);
+  const twins = oneLand && tier > 0 ? sameColour(ctx, subs) : [];
 
   let changed = true;
   while (changed) {
     changed = false;
+    for (const [me, other] of twins) {
+      // in turn, only a placed twin closes its land; together, a confined one does
+      if (tier === 1 && dom[other].length !== 1) continue;
+      const zone = ctx.zoneOf[dom[other][0]];
+      if (!dom[other].every((y) => ctx.zoneOf[y] === zone)) continue;
+      const kept = dom[me].filter((x) => ctx.zoneOf[x] !== zone);
+      if (kept.length < dom[me].length) {
+        dom[me] = kept;
+        changed = true;
+      }
+    }
     for (const g of groups) {
       if (g.b >= 0 && tier === 0) continue; // about two of this deal: no help alone
       const turns = g.b < 0 ? [[g.a, -1]] : [[g.a, g.b], [g.b, g.a]];
@@ -93,6 +115,28 @@ export function narrow(open, groups, ctx, pos, subs, tier = 2) {
     }
   }
   return dom;
+}
+
+/** Ordered pairs [m, o] of a deal's animals (indexes into subs) that share a colour. */
+export function sameColour(ctx, subs) {
+  const out = [];
+  subs.forEach((a, m) =>
+    subs.forEach((b, o) => {
+      if (m !== o && ctx.animals[a].land === ctx.animals[b].land) out.push([m, o]);
+    })
+  );
+  return out;
+}
+
+/**
+ * How many squares one sentence leaves each animal of the deal, read on its
+ * own: nothing else on the cards, and no other rule but the colours. An animal
+ * the sentence does not mention keeps all its squares. A 1 means that
+ * sentence alone says where the animal goes -- the "too focused" clue that
+ * depth is about.
+ */
+export function sentenceReach(clues, open, ctx, pos, subs) {
+  return narrow(open, groupClues(clues, subs), ctx, pos, subs, 2, false).map((cells) => cells.length);
 }
 
 export const isSolved = (dom) => dom.every((cells) => cells.length === 1);

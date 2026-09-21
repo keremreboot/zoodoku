@@ -12,8 +12,8 @@
 
 import { LANDS } from './habitats.js';
 import { describeZones } from './zones.js';
-import { COORDS, boardContext, chunks, sentenceCount } from './clues.js';
-import { TIERS, tierNeeded } from './deduce.js';
+import { COORDS, boardContext, chunks, ideas, sentenceCount } from './clues.js';
+import { TIERS, groupClues, isSolved, narrow, sentenceReach, tierNeeded } from './deduce.js';
 import { makeRules } from './util.js';
 
 export const LEVEL_FILE = 'levels/levels.json';
@@ -78,6 +78,12 @@ function repetition(puzzle) {
  * 2 and a hard 9 x 9 in the thirties. It is a guide for ordering
  * levels, not a law -- the editor shows it so the funnel can be checked at a
  * glance, and a person decides the order.
+ *
+ * `reach` is the depth a deal actually has: the fewest squares any one idea on
+ * a card leaves an animal it talks about, read alone (1 means some sentence
+ * names a square outright). `pair` marks a deal with two animals of a colour,
+ * and `pairUsed` one that could not be solved at its tier without the rule that
+ * they need two different lands.
  */
 export function measure(puzzle) {
   const solution = Int32Array.from(puzzle.animals, (a) => a.cell);
@@ -90,6 +96,21 @@ export function measure(puzzle) {
       (n, id) => n + sentenceCount(deal.clues.filter((cl) => cl.a === id)),
       0
     );
+    let reach = Infinity;
+    for (const id of deal.animals) {
+      for (const idea of ideas(deal.clues.filter((cl) => cl.a === id))) {
+        const left = sentenceReach(idea, cand, puzzle.ctx, pos, deal.animals);
+        left.forEach((n, k) => {
+          if (n < cand[k].length) reach = Math.min(reach, n); // only animals it narrows
+        });
+      }
+    }
+    const colours = deal.animals.map((id) => puzzle.animals[id].land);
+    const pair = new Set(colours).size < colours.length;
+    // does the pair matter -- would the deal stall if a land could take both?
+    const groups = groupClues(deal.clues, deal.animals);
+    const pairUsed =
+      pair && !isSolved(narrow(cand, groups, puzzle.ctx, pos, deal.animals, puzzle.spec?.tier ?? 2, false));
     return {
       bits: Math.round(bits * 10) / 10,
       tier,
@@ -97,6 +118,9 @@ export function measure(puzzle) {
       sentences,
       spare: deal.spare ?? 0,
       coords: deal.clues.some((cl) => COORDS.includes(cl.k)),
+      reach: Number.isFinite(reach) ? reach : null,
+      pair,
+      pairUsed,
     };
   });
   const weight = deals.reduce((s, d) => s + d.bits * (1 + 0.5 * Math.max(0, d.tier)) - 4 * d.spare, 0);
@@ -108,6 +132,9 @@ export function measure(puzzle) {
     tierName: TIERS[Math.max(...deals.map((d) => d.tier))]?.name ?? 'unsolvable',
     sentences: deals.reduce((s, d) => s + d.sentences, 0),
     coords: deals.some((d) => d.coords),
+    reach: deals.some((d) => d.reach != null) ? Math.min(...deals.map((d) => d.reach ?? Infinity)) : null,
+    pairDeals: deals.filter((d) => d.pair).length,
+    pairsUsed: deals.filter((d) => d.pairUsed).length,
     difficulty: Math.round(weight / 3),
   };
 }

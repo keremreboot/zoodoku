@@ -56,6 +56,16 @@
           <input type="range" id="perCard" min="1" max="3" step="1" />
         </div>
         <div class="knob">
+          <label for="depth">Depth <output id="depthOut"></output></label>
+          <input type="range" id="depth" min="1" max="4" step="1" />
+          <p class="hint" id="depthHint"></p>
+        </div>
+        <div class="knob">
+          <label for="pairs">Two of one colour <output id="pairsOut"></output></label>
+          <input type="range" id="pairs" min="0" max="0" step="1" />
+          <p class="hint">Deals that bring two animals of the same colour. A land takes one, so pinning one to a land shuts the other out of it. They come two deals at a time.</p>
+        </div>
+        <div class="knob">
           <label for="landmarks">Landmarks, at most <output id="landmarksOut"></output></label>
           <input type="range" id="landmarks" min="0" max="3" step="1" />
           <p class="hint">Fixed things animals can mention — “I'm next to the tree.” Any no clue mentions are taken away, and a level that only worked because of one is thrown out.</p>

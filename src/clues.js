@@ -533,6 +533,34 @@ export function phrase(clues, ctx) {
 /** How many sentences these clues make on a card. */
 export const sentenceCount = (clues) => fold(clues).length;
 
+/** The clues each sentence on a card speaks for, as the card will fold them. */
+export const sentences = (clues) => fold(clues).map((group) => group.clues);
+
+/** What a clue names besides its own animal: another animal, a landmark, or nothing. */
+const namesOf = (cl) => (cl.m != null && cl.m >= 0 ? [`m${cl.m}`] : cl.b >= 0 ? [`a${cl.b}`] : []);
+
+/**
+ * A card's sentences, with every sentence about the same other animal or
+ * landmark joined into one: "I'm next to the tent. I'm right of the tent." is
+ * one idea -- which square beside the tent -- said in two halves.
+ */
+export function ideas(clues) {
+  const out = sentences(clues).map((s) => ({ clues: [...s], names: new Set(s.flatMap(namesOf)) }));
+  const share = (x, y) => [...y.names].some((n) => x.names.has(n));
+  for (let merged = true; merged; ) {
+    merged = false;
+    for (let i = 0; i < out.length && !merged; i++) {
+      const j = out.findIndex((y, k) => k > i && share(out[i], y));
+      if (j < 0) continue;
+      out[i].clues.push(...out[j].clues);
+      for (const n of out[j].names) out[i].names.add(n);
+      out.splice(j, 1);
+      merged = true;
+    }
+  }
+  return out.map((idea) => idea.clues);
+}
+
 /**
  * The most things any one sentence on the card lists -- "I'm next to the fish
  * and the tree" lists two. A named corner is one idea however many facts it

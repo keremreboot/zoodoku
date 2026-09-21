@@ -8,7 +8,7 @@
 // Saving goes through the local dev server (npm start). Opened any other way,
 // the editor still works, and offers the file as a download instead.
 
-import { DEFAULT_SPEC, landOptions, makeLevel } from './generate.js';
+import { DEFAULT_SPEC, landOptions, makeLevel, maxPairs } from './generate.js';
 import { VOCABULARY, chunks } from './clues.js';
 import { TIERS } from './deduce.js';
 import { FUNNEL, suggestSpec } from './funnel.js';
@@ -29,7 +29,8 @@ const ui = {};
 for (const id of [
   'slot', 'suggest', 'N', 'NOut', 'lands', 'landsOut', 'tier', 'tierOut', 'tierHint',
   'vocab', 'vocabOut', 'vocabHint', 'perCard', 'perCardOut', 'spare', 'spareOut', 'coords',
-  'landmarks', 'landmarksOut', 'varied', 'perCardLabel',
+  'landmarks', 'landmarksOut', 'varied', 'perCardLabel', 'depth', 'depthOut', 'depthHint',
+  'pairs', 'pairsOut',
   'generate', 'playtest', 'lock', 'genStatus', 'previewTitle', 'answers', 'stage', 'stats',
   'deals', 'count', 'funnel', 'book', 'saveStatus', 'download',
 ]) {
@@ -75,6 +76,8 @@ function readSpec() {
     landmarks: Number(ui.landmarks.value),
     varied: ui.varied.checked,
     coords: ui.coords.checked,
+    depth: Number(ui.depth.value),
+    pairs: Math.min(Number(ui.pairs.value), maxPairs(landChoices()[Number(ui.lands.value)])),
   };
 }
 
@@ -88,6 +91,8 @@ function writeSliders(spec) {
   ui.landmarks.value = String(spec.landmarks ?? 0);
   ui.varied.checked = !!spec.varied;
   ui.coords.checked = !!spec.coords;
+  ui.depth.value = String(spec.depth ?? 1);
+  ui.pairs.value = String(spec.pairs ?? 0);
   syncLabels();
 }
 
@@ -117,9 +122,19 @@ function syncLabels() {
   ui.perCardOut.textContent = String(spec.perCard);
   ui.spareOut.textContent = String(spec.spare);
   ui.landmarksOut.textContent = String(spec.landmarks);
+  ui.depthOut.textContent = spec.depth <= 1 ? 'off' : `${spec.depth} squares`;
+  ui.depthHint.textContent =
+    spec.depth <= 1
+      ? 'A sentence may name the square outright — “I’m in the board’s top-left corner.”'
+      : `No sentence alone leaves an animal fewer than ${spec.depth} squares, so each is found where two or more facts meet.`;
+  // the pairs slider runs up to what this many deals can hold
+  const most = maxPairs(spec.lands);
+  ui.pairs.max = String(most);
+  ui.pairs.disabled = most === 0;
+  ui.pairsOut.textContent = spec.pairs ? `${spec.pairs * 2} of ${spec.lands / 3} deals` : 'none';
 }
 
-for (const el of [ui.lands, ui.tier, ui.vocab, ui.perCard, ui.spare, ui.landmarks, ui.varied, ui.coords]) {
+for (const el of [ui.lands, ui.tier, ui.vocab, ui.perCard, ui.spare, ui.landmarks, ui.varied, ui.coords, ui.depth, ui.pairs]) {
   el.addEventListener('input', syncLabels);
 }
 ui.N.addEventListener('input', () => {
@@ -190,6 +205,10 @@ function received({ level, ms }) {
 /** What to loosen when nothing fits -- in the order most likely to help. */
 function advice(spec) {
   const tips = [];
+  if (spec.depth > 1 && spec.tier === 0 && spec.perCard < 2) {
+    tips.push('two facts per card (standing alone, depth needs two facts to meet)');
+  }
+  if (spec.depth > 2) tips.push('less depth');
   if (spec.vocab <= 1 && spec.N >= 7) {
     tips.push('a harder-to-read rung (simple clues can’t pin the middle of a big board)');
   }
@@ -224,6 +243,8 @@ function show(level, at) {
     ['Leaning', s.tierName],
     ['Words', VOCABULARY[level.spec.vocab].name],
     ['Sentences', s.sentences],
+    ['Depth', s.reach ?? '–'],
+    ['Two of a colour', s.pairDeals ?? 0],
     ['Spare', spare],
     ['Landmarks', s.landmarks],
     ['Most said', s.repeats?.most.kind ? `“${SAID[s.repeats.most.kind] ?? s.repeats.most.kind}” ×${s.repeats.most.uses}` : '–'],
@@ -248,7 +269,7 @@ function show(level, at) {
       card.className = 'deal-card';
       const h = document.createElement('h3');
       const d = s.deals[r];
-      h.textContent = `Deal ${r + 1} · ${TIERS[d.tier]?.name ?? '?'} · ${d.sentences} sentences`;
+      h.textContent = `Deal ${r + 1} · ${TIERS[d.tier]?.name ?? '?'} · ${d.sentences} sentences · depth ${d.reach ?? '?'}${d.pair ? (d.pairUsed ? ' · two of a colour, needed' : ' · two of a colour, not needed') : ''}`;
       const ul = document.createElement('ul');
       for (const id of deal.animals) {
         const a = puzzle.animals[id];

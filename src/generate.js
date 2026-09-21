@@ -27,14 +27,15 @@ import {
   boardContext,
   holds,
   kindsFor,
+  ideas,
   longestList,
   sentenceCount,
   sizeLead,
 } from './clues.js';
-import { groupClues, isSolved, narrow, openness } from './deduce.js';
+import { groupClues, isSolved, narrow, openness, sentenceReach } from './deduce.js';
 import { LANDMARKS, pickLands, readAnimal } from './habitats.js';
 import { evenSizes, makeZones, variedSizes } from './zones.js';
-import { manhattan, range, shuffle } from './util.js';
+import { manhattan, neighbours, range, shuffle } from './util.js';
 
 const LANDS_PER_DEAL = 3;
 
@@ -46,8 +47,9 @@ export const MAX_LANDMARKS = 3;
 
 /**
  * How many lands a board of side N can be cut into: a multiple of three, since
- * every deal is one animal of each colour, and no land smaller than four
- * squares on average -- below that, a land is barely a place.
+ * every deal is three animals and each colour gets the same number of lands,
+ * and no land smaller than four squares on average -- below that, a land is
+ * barely a place.
  */
 export function landOptions(N) {
   const out = [];
@@ -66,7 +68,14 @@ export const DEFAULT_SPEC = {
   landmarks: 2, // most fixed things on the board; any no clue mentions are taken away
   varied: true, // lands of clearly different sizes, so one can be "the biggest"
   coords: false, // allow "I'm in row 3" -- plain, but it hands the answer over
+  depth: 1, // fewest squares any one sentence may leave an animal -- see chooseClues
+  pairs: 0, // swaps that give two deals each two animals of one colour -- see dealColours
 };
+
+/**
+ * Most swaps a level can take: each one needs two deals of its own.
+ */
+export const maxPairs = (lands) => Math.floor(lands / LANDS_PER_DEAL / 2);
 
 /** Kinds that read the same both ways round, so one of the pair is redundant. */
 const MIRROR = {
@@ -138,8 +147,9 @@ function impliedBy(shown, cl, cand, ctx, work, subs) {
 }
 
 /**
- * Which land gets which colour. Every colour needs the same number of lands, so
- * each deal can offer one animal of each right up to the last. When sizes
+ * Which land gets which colour. Every colour gets the same number of lands, so
+ * each deal can offer one animal of each right up to the last -- pairs swap
+ * animals between deals and keep that count (see dealColours). When sizes
  * vary, the lands are taken three at a time from biggest to smallest and the
  * colours shared out within each three -- so each colour gets a big land and
  * a small one, and "the biggest Meadow" is a thing a board can have.
@@ -157,16 +167,41 @@ function colourLands(zones, count, rng) {
 }
 
 /**
- * Which land of each colour is dealt alongside which. Pairing lands that share
- * a border is what puts a deal's animals within reach of each other, so that
- * "I'm next to the fish and the lion" is a sentence this game can produce.
+ * The colours of each deal's three animals. Most deals are one of each. A
+ * pair swaps one animal between two deals: one gives up its Ocean for a second
+ * Meadow and the other takes that Ocean for its Meadow, so each colour still
+ * has as many lands as animals, and both deals now hold two animals of one
+ * colour.
+ *
+ * Two animals of one colour is a way to be vague at first and exact in the
+ * end. Each could stand in either land of their colour, so neither card has to
+ * say which -- but a land takes one animal, so the moment one of them is
+ * confined to a land, the other is shut out of it.
  */
-function groupRounds(zones, byLand, rounds, rng) {
+function dealColours(rounds, pairs, rng) {
+  const deals = range(rounds).map(() => range(LANDS_PER_DEAL));
+  if (!pairs) return deals;
+  const order = shuffle(range(rounds), rng);
+  for (let p = 0; p < pairs; p++) {
+    const [gets, gives] = [deals[order[2 * p]], deals[order[2 * p + 1]]];
+    const [twice, moved] = shuffle(range(LANDS_PER_DEAL), rng);
+    gets[gets.indexOf(moved)] = twice;
+    gives[gives.indexOf(twice)] = moved;
+  }
+  return deals.map((cols) => cols.sort((x, y) => x - y));
+}
+
+/**
+ * Which lands are dealt together. Pairing lands that share a border is what
+ * puts a deal's animals within reach of each other, so that "I'm next to the
+ * fish and the lion" is a sentence this game can produce.
+ */
+function groupRounds(zones, byLand, rounds, pairs, rng) {
   let best = null;
   let bestScore = -Infinity;
   for (let t = 0; t < 60; t++) {
     const lists = byLand.map((list) => shuffle([...list], rng));
-    const groups = range(rounds).map((r) => lists.map((list) => list[r]));
+    const groups = dealColours(rounds, pairs, rng).map((cols) => cols.map((h) => lists[h].pop()));
     let score = 0;
     for (const g of groups) {
       for (let i = 0; i < g.length; i++) {
@@ -229,8 +264,14 @@ function placeTrio(R, zones, group, tier, rng) {
  * level: the kind used least so far wins. With one fact to a card and only a
  * handful of kinds to choose from, leaving it to chance puts "I'm in a corner
  * of the board" on two cards of three.
+ *
+ * With depth, the same is done with two facts instead of one: the animal goes
+ * where two facts meet, each of which alone leaves it at least `depth` squares
+ * -- "I'm on the board's top edge" and "I'm next to Ocean", true together of
+ * one square only. One of the two may be a landmark still to be set down,
+ * beside several of the animal's squares but only one the other fact allows.
  */
-function placeSimply(R, zones, zoneLand, zoneRound, group, round, rng, wants, plan, allow) {
+function placeSimply(R, zones, zoneLand, zoneRound, group, round, rng, wants, plan, allow, depth = 1) {
   const quick = {
     R,
     zoneOf: zones.zoneOf,
@@ -242,7 +283,8 @@ function placeSimply(R, zones, zoneLand, zoneRound, group, round, rng, wants, pl
     pos[0] = i;
     return holds(fact, quick, pos) === true;
   };
-  return group.map((z, h) => {
+  return group.map((z) => {
+    const h = zoneLand[z];
     // every fact about a square alone that this level may say
     const facts = [];
     for (const k of UNARY) {
@@ -264,26 +306,72 @@ function placeSimply(R, zones, zoneLand, zoneRound, group, round, rng, wants, pl
     for (let y = 0; y < zones.count; y++) {
       if (zoneLand[y] === h && zoneRound[y] >= round) cands.push(...zones.zoneCells[y]);
     }
-    // every square of this land that some one fact picks out, by kind of fact
+    // every square of this land that one fact picks out -- or, with depth, two
+    // broad ones together -- by the kinds of fact that do it
     const byKind = new Map();
-    for (const i of zones.zoneCells[z]) {
-      for (const fact of facts) {
-        if (!truth(fact, i) || !cands.every((j) => j === i || !truth(fact, j))) continue;
-        if (!byKind.has(fact.k)) byKind.set(fact.k, []);
-        byKind.get(fact.k).push(i);
+    const note = (kinds, i, partner = null) => {
+      const key = kinds.join('|');
+      if (!byKind.has(key)) byKind.set(key, { kinds, cells: [], partner: new Map() });
+      byKind.get(key).cells.push(i);
+      if (partner) byKind.get(key).partner.set(i, partner);
+    };
+    if (depth <= 1) {
+      for (const i of zones.zoneCells[z]) {
+        for (const fact of facts) {
+          if (truth(fact, i) && cands.every((j) => j === i || !truth(fact, j))) note([fact.k], i);
+        }
+      }
+    } else {
+      const floor = Math.min(depth, Math.max(1, cands.length - 1));
+      const broad = facts
+        .map((fact) => ({ fact, where: new Set(cands.filter((j) => truth(fact, j))) }))
+        .filter((f) => f.where.size >= floor && f.where.size < cands.length);
+      for (const i of zones.zoneCells[z]) {
+        const mine = broad.filter((f) => f.where.has(i));
+        for (let x = 0; x < mine.length; x++) {
+          for (let y = x + 1; y < mine.length; y++) {
+            const [f, g] = [mine[x], mine[y]];
+            if (sentenceCount([f.fact, g.fact]) !== 2) continue; // would fold into one sharp sentence
+            if ([...f.where].some((j) => j !== i && g.where.has(j))) continue;
+            note([f.fact.k, g.fact.k].sort(), i);
+          }
+        }
+      }
+      // Or one board fact and a landmark still to be set down: beside the
+      // animal and beside at least `floor` of its squares, but beside no other
+      // square the board fact allows. Without this, nearly every pair of simple
+      // facts that meet is "I'm next to <colour>" and something.
+      if (plan.landmarksLeft > 0 && allow.has('touch')) {
+        for (const i of zones.zoneCells[z]) {
+          for (const f of broad) {
+            if (!f.where.has(i)) continue;
+            const spot = neighbours(R, i).some((L) => {
+              const near = cands.filter((j) => manhattan(R, j, L) === 1);
+              return near.length >= floor && near.every((j) => j === i || !f.where.has(j));
+            });
+            if (spot) note(['touch', f.fact.k].sort(), i, { floor, where: f.where });
+          }
+        }
       }
     }
-    const kinds = [...byKind.keys()];
-    if (plan.landmarksLeft > 0 && allow.has('touch')) kinds.push('touch');
     const used = (k) => plan.usage.get(k) || 0;
-    const least = Math.min(...kinds.map(used));
-    const fresh = kinds.filter((k) => used(k) === least);
-    const kind = fresh.length ? fresh[(rng() * fresh.length) | 0] : null;
-    plan.usage.set(kind, used(kind) + 1);
+    const ways = [...byKind.values()];
+    if (depth <= 1 && plan.landmarksLeft > 0 && allow.has('touch')) ways.push({ kinds: ['touch'], cells: null });
+    const cost = (way) => way.kinds.reduce((s, k) => s + used(k), 0);
+    const least = Math.min(...ways.map(cost));
+    const fresh = ways.filter((way) => cost(way) === least);
+    const way = fresh.length ? fresh[(rng() * fresh.length) | 0] : null;
+    for (const k of way?.kinds ?? []) plan.usage.set(k, used(k) + 1);
+    const kind = way?.cells ? 'board' : way ? 'touch' : null;
 
-    if (kind && kind !== 'touch') {
-      const cells = byKind.get(kind);
-      return cells[(rng() * cells.length) | 0];
+    if (kind === 'board') {
+      const cell = way.cells[(rng() * way.cells.length) | 0];
+      const partner = way.partner.get(cell);
+      if (partner) {
+        plan.landmarksLeft--;
+        wants.push({ cell, cands, ...partner });
+      }
+      return cell;
     }
     // a landmark will do the picking -- or, with none left, chance will
     const cells = zones.zoneCells[z];
@@ -310,7 +398,10 @@ function placeLandmarks(R, zones, animals, count, rng, wants = []) {
 
   // First, animals waiting on a landmark to pick them out (see placeSimply): a
   // landmark right beside the animal, and beside no other square its colour
-  // could take, makes "I'm next to the tree" name exactly one square.
+  // could take, makes "I'm next to the tree" name exactly one square. With
+  // depth it is the other way about: beside several of its squares, so the
+  // sentence stays broad, and beside no other square the board fact it is
+  // paired with allows, so the two meet on one.
   for (const want of shuffle([...wants], rng)) {
     if (placed.length >= names.length) break;
     const used = new Set(placed.map((l) => zones.zoneOf[l.cell]));
@@ -320,7 +411,10 @@ function placeLandmarks(R, zones, animals, count, rng, wants = []) {
       if (manhattan(R, i, want.cell) !== 1) continue;
       if (answers.has(i) || used.has(z) || zones.zoneCells[z].length < 4) continue;
       if (placed.some((l) => manhattan(R, l.cell, i) < 2)) continue;
-      if (want.cands.some((j) => j !== want.cell && manhattan(R, i, j) === 1)) continue;
+      const near = want.cands.filter((j) => j !== want.cell && manhattan(R, i, j) === 1);
+      if (want.where) {
+        if (near.length + 1 < want.floor || near.some((j) => want.where.has(j))) continue;
+      } else if (near.length) continue;
       options.push(i);
     }
     if (!options.length) continue;
@@ -437,6 +531,17 @@ function buildPool(ctx, subs, earlier, kinds, solution) {
  * the repeats sit side by side. Greedy overshoots, so every chosen clue is
  * then tested for whether the others can already do its work, and dropped if
  * they can.
+ *
+ * Depth is a limit on how much any one sentence may give away. Left to itself,
+ * greedy reaches for the sharpest fact there is, and the sharpest fact names
+ * a square outright -- "I'm in the board's top-left corner" -- which leaves
+ * nothing to put together. At depth d no sentence, read on its own against
+ * every square the animal could take, may leave it fewer than d: each one
+ * draws a region, and the square is where the regions cross. (An animal with
+ * only a few squares to begin with need only be left one fewer than it had.)
+ * Everything a card says about one other animal or landmark counts as one
+ * sentence here, the way the solver reads it: "I'm next to the tent. I'm right
+ * of the tent." is one square said in two halves, not two facts that meet.
  */
 function chooseClues(cand, pool, ctx, work, subs, spec, spent, rng) {
   const { tier, perCard } = spec;
@@ -448,19 +553,100 @@ function chooseClues(cand, pool, ctx, work, subs, spec, spent, rng) {
   // than two things: "I'm next to the fountain, the goat and the bat" is three
   // facts to hold at once, which is a lot to ask in one breath at any level.
   const oneByOne = spec.vocab <= 1;
+
+  const depth = spec.depth ?? 1;
+  const floor = cand.map((cells) => Math.min(depth, Math.max(1, cells.length - 1)));
+  const index = new Map(pool.map((cl, i) => [cl, i]));
+  const sharp = new Map();
+  const tooSharp = (sentence) => {
+    const key = sentence.map((cl) => index.get(cl)).sort((x, y) => x - y).join(',');
+    if (!sharp.has(key)) {
+      const reach = sentenceReach(sentence, cand, ctx, work, subs);
+      sharp.set(key, reach.some((n, k) => n < floor[k]));
+    }
+    return sharp.get(key);
+  };
+  // every idea a card holds -- folding can join two fine facts into one sharp sentence
+  const deep = depth > 1 ? (card) => ideas(card).every((s) => !tooSharp(s)) : () => true;
+  // a fact too sharp on its own is only sharper folded into a sentence with another
+  if (depth > 1) pool = pool.filter((cl) => !tooSharp([cl]));
+
   const cardFits = (cl, shown) => {
     const card = [...shown.filter((c) => c.a === cl.a), cl];
-    if (!oneByOne) return sentenceCount(card) <= perCard && longestList(card) <= 2;
-    return card.length <= perCard && sentenceCount(card) === card.length;
+    const fits = oneByOne
+      ? card.length <= perCard && sentenceCount(card) === card.length
+      : sentenceCount(card) <= perCard && longestList(card) <= 2;
+    return fits && deep(card);
   };
   const leans = (cl) => cl.b >= 0 && subs.includes(cl.b);
   const usedAlready = (cl, shown) =>
     shown.filter((c) => c.k === cl.k && c.a !== cl.a).length + (spent.get(cl.k) || 0);
 
-  let open = cand;
-  const chosen = [];
+  // Kinds the deal and the level have said already, weighed as below.
+  const weight = (cl, shown) => {
+    const inDeal = shown.filter((c) => c.k === cl.k && c.a !== cl.a).length;
+    return 0.12 * (RANK[cl.k] ?? 6) + 1.5 * inDeal + 0.6 * (spent.get(cl.k) || 0);
+  };
 
-  while (!isSolved(open)) {
+  // Standing alone with depth, every card is a small puzzle of its own, and
+  // choosing its facts one at a time goes wrong in a particular way: greedy
+  // takes the sharpest fact first -- an edge, leaving two squares side by side
+  // -- and then needs whatever tells two neighbours apart, which is nearly
+  // always "I'm next to <colour>". So each card's facts are chosen as a set:
+  // every pair that together leaves the animal one square is weighed, by how
+  // plain its facts are and how often the deal and level have said those kinds
+  // already, and the lightest is kept.
+  const cardByCard = () => {
+    const out = [];
+    for (const m of shuffle(range(subs.length), rng)) {
+      const a = subs[m];
+      const where = new Map();
+      for (const cl of pool) {
+        if (cl.a !== a || leans(cl)) continue;
+        where.set(cl, new Set(cand[m].filter((x) => {
+          work[a] = x;
+          return holds(cl, ctx, work) === true;
+        })));
+      }
+      const own = [...where.keys()];
+      let best = null;
+      let bestCost = Infinity;
+      const consider = (set) => {
+        const card = [];
+        for (const cl of set) {
+          if (!cardFits(cl, card)) return;
+          card.push(cl);
+        }
+        const cost = set.reduce((s, cl) => s + weight(cl, out), 0) + rng() * 0.3;
+        if (cost < bestCost) {
+          bestCost = cost;
+          best = set;
+        }
+      };
+      for (let x = 0; x < own.length; x++) {
+        const one = where.get(own[x]);
+        if (one.size === 1) consider([own[x]]);
+        if (perCard < 2) continue;
+        for (let y = x + 1; y < own.length; y++) {
+          const two = where.get(own[y]);
+          let both = 0;
+          for (const s of one) if (two.has(s) && ++both > 1) break;
+          if (both === 1) consider([own[x], own[y]]);
+        }
+      }
+      if (!best) return null;
+      out.push(...best);
+    }
+    return out;
+  };
+
+  let open = cand;
+  const standalone = tier === 0 && depth > 1;
+  const chosen = standalone ? cardByCard() : [];
+  if (!chosen) return null;
+  if (standalone && !isSolved(narrow(cand, groupClues(chosen, subs), ctx, work, subs, tier))) return null;
+
+  while (!standalone && !isSolved(open)) {
     const total = openness(open);
     let best = null;
     let bestScore = Infinity;
@@ -498,6 +684,8 @@ function chooseClues(cand, pool, ctx, work, subs, spec, spent, rng) {
   for (const cl of shuffle([...chosen], rng)) {
     if (kept.length < 2) break;
     const trial = kept.filter((c) => c !== cl);
+    // taking a fact off a card can refold what is left into a sharper sentence
+    if (!deep(trial.filter((c) => c.a === cl.a))) continue;
     if (isSolved(narrow(cand, groupClues(trial, subs), ctx, work, subs, tier))) kept = trial;
   }
 
@@ -549,27 +737,31 @@ function attempt(R, rng, spec) {
   const zoneLand = colourLands(zones, spec.lands, rng);
   const byLand = lands.map((_, h) => range(spec.lands).filter((z) => zoneLand[z] === h));
 
-  const groups = groupRounds(zones, byLand, rounds, rng);
+  const groups = groupRounds(zones, byLand, rounds, spec.pairs ?? 0, rng);
   const zoneRound = new Int8Array(spec.lands);
   groups.forEach((g, r) => g.forEach((z) => (zoneRound[z] = r)));
 
   const animals = [];
   const byRound = range(rounds).map(() => []);
-  const cast = lands.map((land) => shuffle([...land.animals], rng).slice(0, rounds));
-  // One fact to a card, each animal standing alone: place animals where one
-  // fact can find them (see placeSimply), or such a level almost never builds.
-  const oneFact = spec.tier === 0 && spec.perCard === 1;
+  const cast = lands.map((land, h) => shuffle([...land.animals], rng).slice(0, byLand[h].length));
+  const castNext = lands.map(() => 0);
+  // Each animal standing alone, from one fact or two that meet: place animals
+  // where those facts can find them (see placeSimply), or such a level almost
+  // never builds.
+  const depth = spec.depth ?? 1;
+  const planned = spec.tier === 0 && (spec.perCard === 1 || depth > 1);
   const allowed = new Set(kindsFor(spec.vocab, spec.coords));
   const wants = []; // animals a landmark should pick out
   const plan = { usage: new Map(), landmarksLeft: spec.landmarks ?? 0 };
   groups.forEach((group, r) => {
-    const seats = oneFact
-      ? placeSimply(R, zones, zoneLand, zoneRound, group, r, rng, wants, plan, allowed)
+    const seats = planned
+      ? placeSimply(R, zones, zoneLand, zoneRound, group, r, rng, wants, plan, allowed, spec.perCard === 1 ? 1 : depth)
       : placeTrio(R, zones, group, spec.tier, rng);
-    group.forEach((z, h) => {
-      const { icon, name } = readAnimal(cast[h][r]);
+    group.forEach((z, k) => {
+      const h = zoneLand[z];
+      const { icon, name } = readAnimal(cast[h][castNext[h]++]);
       const id = animals.length;
-      animals.push({ id, icon, name, land: h, landName: lands[h].name, zone: z, round: r, cell: seats[h] });
+      animals.push({ id, icon, name, land: h, landName: lands[h].name, zone: z, round: r, cell: seats[k] });
       byRound[r].push(id);
     });
   });

@@ -7,6 +7,7 @@
     "start": "node tools/serve.mjs",
     "audit": "node tools/audit.mjs 20",
     "audit:quick": "node tools/audit.mjs 3 --sample",
-    "starter": "node tools/starter-levels.mjs"
+    "starter": "node tools/starter-levels.mjs",
+    "depth": "node tools/depth.mjs"
   }
 }

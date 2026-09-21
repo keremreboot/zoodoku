@@ -8,6 +8,8 @@
 //     generator's own, so a bug in one cannot hide behind the same bug in the
 //     other;
 //   - every deal has exactly one answer, by trying every arrangement;
+//   - no sentence, read on its own, pins an animal down further than the
+//     level's depth allows;
 //   - every clue is true of the answer, and is a kind the key explains;
 //   - every land is whole and a fair size, one animal to a land, right colour;
 //   - no animal and no other landmark stands on a landmark, and every
@@ -28,7 +30,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { makeLevel } from '../src/generate.js';
 import { FUNNEL } from '../src/funnel.js';
-import { ALL_KINDS, GLOSSARY, holds, phrase } from '../src/clues.js';
+import { ALL_KINDS, GLOSSARY, chunks, holds, phrase } from '../src/clues.js';
 import { TIERS } from '../src/deduce.js';
 import { puzzleFromLevel, LEVEL_FILE } from '../src/levels.js';
 import { makeRules, mulberry32, neighbours } from '../src/util.js';
@@ -64,6 +66,11 @@ function connected(R, cells) {
  * animal is down to a single square; at tier 2 ("together") always. Animals
  * from earlier deals are on the board, so facts about them count at every
  * tier. Nothing is ever supposed.
+ *
+ * Two animals of one colour in a deal can't share a land, and that is leaned
+ * on like a pair fact: never alone; in turn, once one is down to a single
+ * square its land is closed to the other; together, once every square left to
+ * one lies in a single land.
  */
 function deducible(p, deal, cand, tier) {
   const inDeal = new Set(deal.animals);
@@ -79,9 +86,29 @@ function deducible(p, deal, cand, tier) {
   const open = new Map(deal.animals.map((id, k) => [id, new Set(cand[k])]));
   const allTrue = (clues) => clues.every((cl) => holds(cl, p.ctx, pos) === true);
 
+  const zoneOf = p.zones.zoneOf;
+  const colour = (id) => p.animals[id].land;
+
   let changed = true;
   while (changed) {
     changed = false;
+    if (tier > 0) {
+      for (const me of deal.animals) {
+        for (const other of deal.animals) {
+          if (me === other || colour(me) !== colour(other)) continue;
+          const theirs = open.get(other);
+          if (tier === 1 && theirs.size !== 1) continue;
+          const lands = new Set([...theirs].map((y) => zoneOf[y]));
+          if (lands.size !== 1) continue;
+          for (const x of [...open.get(me)]) {
+            if (lands.has(zoneOf[x])) {
+              open.get(me).delete(x);
+              changed = true;
+            }
+          }
+        }
+      }
+    }
     for (const { ids, clues } of about.values()) {
       if (ids.length === 2 && tier === 0) continue;
       const turns = ids.length === 1 ? [[ids[0], null]] : [ids, [ids[1], ids[0]]];
@@ -186,9 +213,12 @@ function auditPuzzle(p, tier) {
     const work = Int32Array.from(solution);
     for (const a of p.animals) if (a.round >= r) work[a.id] = -1; // later deals must not leak in
     let wins = 0;
+    const zoneOf = p.zones.zoneOf;
     for (const c0 of cand[0]) {
       for (const c1 of cand[1]) {
         for (const c2 of cand[2]) {
+          // a land takes one animal -- only ever in question when two share a colour
+          if (zoneOf[c0] === zoneOf[c1] || zoneOf[c0] === zoneOf[c2] || zoneOf[c1] === zoneOf[c2]) continue;
           work[deal.animals[0]] = c0;
           work[deal.animals[1]] = c1;
           work[deal.animals[2]] = c2;
@@ -201,6 +231,45 @@ function auditPuzzle(p, tier) {
     const fair = deducible(p, deal, cand, tier);
     if (!fair) {
       problems.push(`deal ${r + 1}: cannot be solved at "${TIERS[tier].name}" without a guess`);
+    }
+
+    // Depth: each sentence alone, against every square each animal could
+    // take, must leave the animals it mentions at least `depth` squares (or,
+    // for one that had few to begin with, all but one). Counted by brute force:
+    // a square survives if some squares for the other animals of the deal
+    // make every fact in the sentence true.
+    const depth = p.spec?.depth ?? 1;
+    if (depth > 1) {
+      for (const id of deal.animals) {
+        for (const part of chunks(deal.clues.filter((cl) => cl.a === id), p.ctx)) {
+          const trial = Int32Array.from(work);
+          const named = new Set(part.clues.flatMap((cl) => [cl.a, cl.b]));
+          const mentioned = deal.animals.map((a) => named.has(a));
+          const survivors = cand.map((cells, k) =>
+            !mentioned[k] ? cells.length : cells.filter((x) => {
+              // an animal the sentence never names is never read, so any square will do
+              const rest = cand.map((c, j) => (j === k ? [x] : mentioned[j] ? c : [c[0]]));
+              for (const y0 of rest[0]) {
+                for (const y1 of rest[1]) {
+                  for (const y2 of rest[2]) {
+                    trial[deal.animals[0]] = y0;
+                    trial[deal.animals[1]] = y1;
+                    trial[deal.animals[2]] = y2;
+                    if (part.clues.every((cl) => holds(cl, p.ctx, trial) === true)) return true;
+                  }
+                }
+              }
+              return false;
+            }).length
+          );
+          survivors.forEach((n, k) => {
+            const least = Math.min(depth, Math.max(1, cand[k].length - 1));
+            if (n < least) {
+              problems.push(`deal ${r + 1}: "${part.text}" leaves ${p.animals[deal.animals[k]].name} ${n} square${n === 1 ? '' : 's'}, depth ${depth}`);
+            }
+          });
+        }
+      }
     }
     stats.push({ clues: deal.clues.length, guess: !fair });
   }
