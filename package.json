@@ -6,6 +6,7 @@
   "scripts": {
     "start": "node tools/serve.mjs",
     "audit": "node tools/audit.mjs 20",
-    "audit:quick": "node tools/audit.mjs 3 --sample"
+    "audit:quick": "node tools/audit.mjs 3 --sample",
+    "starter": "node tools/starter-levels.mjs"
   }
 }
