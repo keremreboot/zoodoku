@@ -105,6 +105,15 @@ any other animal is placed. That makes them the main source of variety in the
 early levels, where every animal must stand alone and would otherwise have
 little to describe itself by but edges and corners.
 
+Every landmark on a board is mentioned by some clue. One nobody mentions is
+clutter — something to look at, wonder about, and never need — so once a
+level's clues are chosen, any landmark they don't mention is taken away. That
+is checked, not assumed: nothing stands on a landmark, so even an unmentioned
+one blocks a square, and that blocked square may be what let a deal be solved.
+Every deal is solved again with the square open, and if any would now need a
+guess, the whole level is thrown away and another built. The audit fails any
+level with a landmark no clue mentions.
+
 ### Saying it once
 
 A level that says the same kind of thing over and over is a level with one idea
@@ -190,7 +199,8 @@ Nothing is typed by hand. The sliders set:
   as above.
 - **Most facts (or sentences) on a card** — keeps cards short. At Simple and
   Plain it counts facts; from Lines up, sentences.
-- **Landmarks** — 0 to 3 fixed things animals can mention.
+- **Landmarks** — up to 3 fixed things animals can mention. Any the level's
+  clues don't mention are taken away, so a level may end up with fewer.
 - **Varied land sizes** — lands of clearly different sizes, so one can be *the
   biggest Meadow*. Off, every land is within a square of the others.
 - **Spare clues per deal** — true facts the deal didn't need, as help.

@@ -10,7 +10,8 @@
 //   - every deal has exactly one answer, by trying every arrangement;
 //   - every clue is true of the answer, and is a kind the key explains;
 //   - every land is whole and a fair size, one animal to a land, right colour;
-//   - no animal and no other landmark stands on a landmark.
+//   - no animal and no other landmark stands on a landmark, and every
+//     landmark is mentioned by some clue -- one nobody mentions is clutter.
 //
 // It audits two things. levels/levels.json, because those are the levels
 // players actually get -- locked, so a generator change cannot fix or break
@@ -140,6 +141,11 @@ function auditPuzzle(p, tier) {
   for (const a of p.animals) {
     if (marked.has(a.cell)) problems.push(`${a.name}'s square is under a landmark`);
   }
+  (p.landmarks ?? []).forEach((mark, m) => {
+    if (!p.deals.some((d) => d.clues.some((cl) => cl.m === m))) {
+      problems.push(`the ${mark.name} is never mentioned`);
+    }
+  });
 
   // --- one animal per land, right colour -----------------------------------
   const claimed = new Set();

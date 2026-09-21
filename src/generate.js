@@ -63,7 +63,7 @@ export const DEFAULT_SPEC = {
   vocab: 0, // how far along VOCABULARY the clues may reach -- 0 is one plain fact at a time
   spare: 1, // clues per deal beyond the minimum, as confirmation
   perCard: 2, // most sentences any one card may carry
-  landmarks: 2, // fixed things on the board that animals can mention
+  landmarks: 2, // most fixed things on the board; any no clue mentions are taken away
   varied: true, // lands of clearly different sizes, so one can be "the biggest"
   coords: false, // allow "I'm in row 3" -- plain, but it hands the answer over
 };
@@ -580,18 +580,22 @@ function attempt(R, rng, spec) {
   const solution = Int32Array.from(animals, (a) => a.cell);
   const kinds = kindsFor(spec.vocab, spec.coords);
 
+  // what each animal of deal r could legally take, with these squares blocked
+  const candidatesAt = (r, subs, blockedCells) =>
+    subs.map((a) => {
+      const out = [];
+      for (let z = 0; z < spec.lands; z++) {
+        if (zoneLand[z] !== animals[a].land || zoneRound[z] < r) continue;
+        for (const i of zones.zoneCells[z]) if (!blockedCells.has(i)) out.push(i);
+      }
+      return out;
+    });
+
   const deals = [];
   const spent = new Map(); // kinds already said, across the whole level
   for (let r = 0; r < rounds; r++) {
     const subs = byRound[r];
-    const cand = subs.map((a) => {
-      const out = [];
-      for (let z = 0; z < spec.lands; z++) {
-        if (zoneLand[z] !== animals[a].land || zoneRound[z] < r) continue;
-        for (const i of zones.zoneCells[z]) if (!blocked.has(i)) out.push(i);
-      }
-      return out;
-    });
+    const cand = candidatesAt(r, subs, blocked);
     const earlier = animals.filter((a) => a.round < r).map((a) => a.id);
     const pool = buildPool(ctx, subs, earlier, kinds, solution);
     const chosen = chooseClues(cand, pool, ctx, Int32Array.from(solution), subs, spec, spent, rng);
@@ -599,7 +603,46 @@ function attempt(R, rng, spec) {
     deals.push({ round: r, animals: subs, clues: chosen.clues, spare: chosen.spare });
   }
 
-  return { R, spec, zones, lands, zoneLand, zoneRound, animals, landmarks, deals, ctx, rounds };
+  const kept = dropUnmentioned(landmarks, deals, ctx, spec.tier, solution, candidatesAt);
+  if (!kept) return null;
+
+  return { R, spec, zones, lands, zoneLand, zoneRound, animals, landmarks: kept, deals, ctx, rounds };
+}
+
+/**
+ * A landmark no clue mentions is clutter: something on the board the player
+ * looks at, wonders about, and never needs. So once the clues are chosen,
+ * every landmark nothing mentions is taken away.
+ *
+ * That is not free. Nothing stands on a landmark, so even one nobody mentions
+ * was doing a job -- blocking a square -- and that blocked square may be what
+ * let elimination finish a deal. Taking the landmark away opens the square
+ * again. So every deal is solved again with it open, at the level's tier, and
+ * if any deal now needs a guess the whole level is thrown away and another
+ * built: it only worked because of something it never said.
+ *
+ * Clues name landmarks by position in the list, so the kept ones are
+ * renumbered. Returns the kept landmarks, or null if the level must go.
+ */
+function dropUnmentioned(landmarks, deals, ctx, tier, solution, candidatesAt) {
+  const named = (cl) => cl.m != null && cl.m >= 0;
+  const mentioned = new Set(deals.flatMap((d) => d.clues.filter(named).map((cl) => cl.m)));
+  if (mentioned.size === landmarks.length) return landmarks;
+
+  const keep = landmarks.map((_, m) => m).filter((m) => mentioned.has(m));
+  const renumber = new Map(keep.map((m, k) => [m, k]));
+  const kept = keep.map((m) => landmarks[m]);
+  const open = new Set(kept.map((l) => l.cell));
+  ctx.landmarks = kept;
+  for (const d of deals) for (const cl of d.clues) if (named(cl)) cl.m = renumber.get(cl.m);
+
+  for (const d of deals) {
+    const cand = candidatesAt(d.round, d.animals, open);
+    const work = Int32Array.from(solution);
+    const left = narrow(cand, groupClues(d.clues, d.animals), ctx, work, d.animals, tier);
+    if (!isSolved(left)) return null;
+  }
+  return kept;
 }
 
 /**
