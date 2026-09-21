@@ -94,7 +94,7 @@ export const COORDS = ['inRow', 'inColumn'];
 export const VOCABULARY = [
   {
     name: 'Plain',
-    blurb: 'edges, corners, what an animal is next to, the biggest land',
+    blurb: "the board's edges and corners, what an animal is next to, the biggest land",
     kinds: [
       'corner',
       'notCorner',
@@ -335,6 +335,12 @@ export function holds(cl, ctx, pos) {
 // rather than "in a higher row than". Short words can be read two ways more
 // easily than long ones, which is what GLOSSARY is for: every short sentence
 // has one exact meaning written down, and the key shows it.
+//
+// The one place brevity gives way: every edge, corner and half says "of the
+// board". A land has edges and corners too, and "I'm on an edge" said by an
+// animal standing in a land is a fair question -- whose edge? Clues about the
+// animal's land say "land" instead ("I'm next to another land"), so no
+// sentence leaves the player to guess which one is meant.
 
 const SIDES = ['top', 'right', 'bottom', 'left'];
 
@@ -378,27 +384,27 @@ const GROUPABLE = {
     xs.length === 1 ? `My land borders ${xs[0]}'s land.` : `My land borders the lands of ${and(xs)}.`,
   nearLand: (xs) => `I'm next to ${and(xs)}.`,
   notNearLand: (xs) => `I'm not next to ${or(xs)}.`,
-  notSide: (xs) => `I'm not on the ${or(xs)} edge.`,
+  notSide: (xs) => `I'm not on the ${or(xs)} edge of the board.`,
 };
 
 function one(cl, ctx) {
   if (GROUPABLE[cl.k]) return GROUPABLE[cl.k]([target(cl, ctx)]);
   switch (cl.k) {
     case 'rim':
-      return "I'm on an edge.";
+      return "I'm on the edge of the board.";
     case 'inland':
-      return "I'm not on an edge.";
+      return "I'm not on the edge of the board.";
     case 'corner':
-      return "I'm in a corner.";
+      return "I'm in a corner of the board.";
     case 'notCorner':
-      return "I'm not in a corner.";
+      return "I'm not in a corner of the board.";
     case 'side':
-      return `I'm on the ${SIDES[cl.n]} edge.`;
+      return `I'm on the ${SIDES[cl.n]} edge of the board.`;
     case 'top':
     case 'bottom':
     case 'left':
     case 'right':
-      return `I'm in the ${cl.k} half.`;
+      return `I'm in the ${cl.k} half of the board.`;
     case 'zoneEdge':
       return "I'm next to another land.";
     case 'zoneCore':
@@ -422,11 +428,14 @@ function one(cl, ctx) {
 
 /**
  * Which of one animal's clues are said together. Repeats of a groupable kind
- * fold into one sentence, and so do a corner and an edge -- "I'm in a corner.
- * I'm on the bottom edge." is one fact, a bottom corner, and is said as one.
- * Two edges at right angles are a corner too, whether or not "corner" was
- * among the clues. "I'm on an edge" with "I'm not on the top edge" becomes
- * "I'm on an edge, but not the top one".
+ * fold into one sentence, and so do a corner and an edge -- "I'm in a corner of
+ * the board. I'm on the bottom edge of the board." is one fact, a bottom
+ * corner, and is said as one. Two edges at right angles are a corner too,
+ * whether or not "corner" was among the clues. "I'm on the edge of the board"
+ * with "I'm not on the top edge" becomes "I'm on the edge of the board, but not
+ * the top one", and a corner with it becomes "I'm in a corner of the board, but
+ * not a top one" -- saying "of the board" twice in two sentences is the kind of
+ * weight the short style exists to avoid.
  *
  * This is the single source for what makes a sentence: the card's wording
  * and the generator's count of sentences per card both come from here, so the
@@ -456,6 +465,10 @@ function fold(clues) {
     const group = [rim, ...notSides];
     group.forEach((c) => spoken.add(c));
     out.push({ as: 'edgeBut', clues: group });
+  } else if (corner && !spoken.has(corner) && notSides.length) {
+    const group = [corner, ...notSides];
+    group.forEach((c) => spoken.add(c));
+    out.push({ as: 'cornerBut', clues: group });
   }
 
   for (const cl of clues) {
@@ -476,16 +489,16 @@ function say(group, ctx) {
   const [first] = group.clues;
   if (group.as === 'namedCorner') {
     const [upDown, leftRight] = group.clues;
-    return `I'm in the ${SIDES[upDown.n]}-${SIDES[leftRight.n]} corner.`;
+    return `I'm in the ${SIDES[upDown.n]}-${SIDES[leftRight.n]} corner of the board.`;
   }
   if (group.as === 'sideCorner') {
-    const side = group.clues[1];
-    return side.n === 0 || side.n === 2
-      ? `I'm in a ${SIDES[side.n]} corner.`
-      : `I'm in a corner on the ${SIDES[side.n]}.`;
+    return `I'm in a ${SIDES[group.clues[1].n]} corner of the board.`;
+  }
+  if (group.as === 'cornerBut') {
+    return `I'm in a corner of the board, but not a ${or(group.clues.slice(1).map((c) => SIDES[c.n]))} one.`;
   }
   if (group.as === 'edgeBut') {
-    return `I'm on an edge, but not the ${or(group.clues.slice(1).map((c) => SIDES[c.n]))} one.`;
+    return `I'm on the edge of the board, but not the ${or(group.clues.slice(1).map((c) => SIDES[c.n]))} one.`;
   }
   if (GROUPABLE[first.k]) return GROUPABLE[first.k](group.clues.map((c) => target(c, ctx)));
   return one(first, ctx);
@@ -518,12 +531,12 @@ export const GLOSSARY = [
   {
     kinds: ['touch', 'notTouch'],
     say: "I'm next to the fox. (Or not next to it.)",
-    means: "Our squares share a side. Touching only at a corner doesn't count.",
+    means: "Our squares share a side. Squares touching only at their corners don't count.",
   },
   {
     kinds: ['corners', 'notCorners'],
     say: "I'm diagonal to the fox. (Or not diagonal to it.)",
-    means: 'Our squares touch at one corner and nothing else.',
+    means: 'Our squares touch only at their corners.',
   },
   {
     kinds: ['sameRow', 'notSameRow', 'sameCol', 'notSameCol'],
@@ -558,22 +571,22 @@ export const GLOSSARY = [
   },
   {
     kinds: ['rim', 'inland'],
-    say: "I'm on an edge. (Or not on an edge.)",
-    means: 'The edge is the outer ring of squares.',
+    say: "I'm on the edge of the board. (Or not.)",
+    means: "The board's outer ring of squares. The edges of lands never count.",
   },
   {
     kinds: ['side', 'notSide'],
-    say: "I'm on the top edge. (Or not on it.)",
-    means: 'The top row (or right column, and so on). A corner is on two edges.',
+    say: "I'm on the top edge of the board. (Or right, bottom, left; or not.)",
+    means: "The board's top row (or right column, and so on). A corner of the board is on two of its edges.",
   },
   {
     kinds: ['corner', 'notCorner'],
-    say: "I'm in a corner. (Or a bottom corner, the top-left corner, or not in a corner.)",
-    means: 'One of the four corner squares — or the two along that edge, or exactly that one.',
+    say: "I'm in a corner of the board. (Or a bottom corner, the top-left corner; or not.)",
+    means: "One of the board's four corner squares — or the two along that edge, or exactly that one. The corners of lands never count.",
   },
   {
     kinds: ['top', 'bottom', 'left', 'right'],
-    say: "I'm in the top half. (Or bottom, left, right.)",
+    say: "I'm in the top half of the board. (Or bottom, left, right.)",
     means:
       'If the board has an odd number of rows, the middle row is in neither half. The same goes for columns.',
   },
@@ -585,7 +598,7 @@ export const GLOSSARY = [
   {
     kinds: ['zoneCore'],
     say: "I'm surrounded by my own land.",
-    means: "All four squares sharing a side with mine are in my land. So I'm not on an edge.",
+    means: "All four squares sharing a side with mine are in my land. So I'm not on the edge of the board.",
   },
   {
     kinds: ['nearLand', 'notNearLand'],

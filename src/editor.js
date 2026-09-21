@@ -41,9 +41,10 @@ const SAID = {
   touch: 'next to', notTouch: 'not next to', corners: 'diagonal', notCorners: 'not diagonal',
   sameRow: 'same row', notSameRow: 'not same row', sameCol: 'same column', notSameCol: 'not same column',
   above: 'above', below: 'below', leftOf: 'left of', rightOf: 'right of', steps: 'steps',
-  zoneTouch: 'lands border', rim: 'on an edge', inland: 'not on an edge', corner: 'corner',
-  notCorner: 'not in a corner', side: 'on an edge', notSide: 'not on an edge',
-  top: 'half', bottom: 'half', left: 'half', right: 'half', zoneEdge: 'next to another land',
+  zoneTouch: 'lands border', rim: 'board edge', inland: 'not on the board edge',
+  corner: 'board corner', notCorner: 'not in a board corner', side: 'board edge',
+  notSide: 'not on a board edge', top: 'half of the board', bottom: 'half of the board',
+  left: 'half of the board', right: 'half of the board', zoneEdge: 'next to another land',
   zoneCore: 'surrounded', nearLand: 'next to a colour', notNearLand: 'not next to a colour',
   biggest: 'biggest', smallest: 'smallest', notBiggest: 'not biggest', inRow: 'row', inColumn: 'column',
 };

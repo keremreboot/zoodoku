@@ -3,9 +3,9 @@
 Three animals arrive at once, one of each colour, and each may only be settled
 in a land of its own colour. That alone leaves them dozens of squares to choose
 between. What settles it is what they say — *I'm next to the tree*, *I'm in
-the biggest Meadow*, *I'm not on the top edge*, *I'm next to the fish and the
-lion* — and every deal is built so that exactly one arrangement of the three can
-be true, and can be found without a single guess.
+the biggest Meadow*, *I'm not on the top edge of the board*, *I'm next to the
+fish and the lion* — and every deal is built so that exactly one arrangement of
+the three can be true, and can be found without a single guess.
 
 Deals keep coming until every land has its animal. Levels get harder as you go.
 
@@ -55,21 +55,21 @@ shows the same list word for word:
 
 | The animal says | It means exactly |
 | --- | --- |
-| I'm (not) next to the fox. | Our squares share a side. Touching only at a corner doesn't count. |
-| I'm (not) diagonal to the fox. | Our squares touch at one corner and nothing else. |
+| I'm (not) next to the fox. | Our squares share a side. Squares touching only at their corners don't count. |
+| I'm (not) diagonal to the fox. | Our squares touch only at their corners. |
 | I'm (not) in the fox's row (column). | Same row (column), any distance apart. |
 | I'm above (below) the fox. | Anywhere in a higher (lower) row. Columns don't matter. |
 | I'm left (right) of the fox. | Anywhere in a column further left (right). Rows don't matter. |
 | I'm 3 steps from the fox. | Count moves up, down, left or right. A diagonal neighbour is 2 steps. |
 | My land borders the fox's land. | A square of my land shares a side with a square of the fox's. |
 | I'm next to the 🌳 tree. | Anything said about an animal can be said about a landmark, and means the same. |
-| I'm (not) on an edge. | The edge is the outer ring of squares. |
-| I'm (not) on the top edge. | The top row (and likewise right, bottom, left). A corner is on two edges. |
-| I'm on an edge, but not the top one. | Both of the above at once. |
-| I'm (not) in a corner. | One of the four corners — or *a bottom corner*, *the top-left corner*. |
-| I'm in the top half. | On an odd board the middle row (column) is in neither half. |
+| I'm (not) on the edge of the board. | The board's outer ring of squares. A land's edges never count. |
+| I'm (not) on the top edge of the board. | The board's top row (and likewise right, bottom, left). A corner of the board is on two edges. |
+| I'm on the edge of the board, but not the top one. | Both of the above at once. |
+| I'm (not) in a corner of the board. | One of the board's four corners — or *a bottom corner*, *the top-left corner*. A land's corners never count. |
+| I'm in the top half of the board. | On an odd board the middle row (column) is in neither half. |
 | I'm next to another land. | A side-neighbour is in a different land. The board's edge doesn't count. |
-| I'm surrounded by my own land. | All four side-neighbours are in my land, so I'm not on an edge. |
+| I'm surrounded by my own land. | All four side-neighbours are in my land, so I'm not on the edge of the board. |
 | I'm (not) next to Desert. | A side-neighbour is (none is) in a Desert land. Only other colours are named. |
 | I'm in the biggest (smallest) Meadow. | More (fewer) squares than any other Meadow, landmarks counted. Or *not the biggest*. |
 | I'm in row 3 (column 3). | Counted from 1 at the top or left. Off unless a level asks for it. |
@@ -83,7 +83,13 @@ beside the code that evaluates each clue, and the audit fails if any kind of
 clue is missing from the list.
 
 Several clues from one animal fold into one sentence: *I'm next to the fish and
-the tree*, *I'm in a bottom corner*, *I'm on an edge, but not the right one*.
+the tree*, *I'm in a bottom corner of the board*, *I'm on the edge of the board,
+but not the right one*.
+
+Every edge, corner and half is the board's, and says so. Lands have edges and
+corners too, and "I'm on an edge" said by an animal standing in a land is a fair
+question — whose? Clues about an animal's own land say "land" instead: *I'm next
+to another land*, *I'm surrounded by my own land*.
 
 ### Landmarks
 
@@ -210,8 +216,9 @@ away from leaning on another animal when a fact that stands alone would do as
 well — and stops once every animal is on its square. A clue elimination can't
 use yet makes no progress, so it is never picked for that. Then each chosen
 clue is dropped if the others can do its work, and a spare clue is added only if
-the card, taken as a whole, does not already say it — "I'm in a corner" and "I'm
-not on the top edge" together already mean "I'm on the bottom edge". One answer
+the card, taken as a whole, does not already say it — "I'm in a corner of the
+board" and "I'm not on the top edge" together already mean "I'm on the bottom
+edge". One answer
 comes free: the answer always survives elimination, because every clue is true
 of it.
 
