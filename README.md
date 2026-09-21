@@ -3,7 +3,7 @@
 Three animals arrive at once, one of each colour, and each may only be settled
 in a land of its own colour. That alone leaves them dozens of squares to choose
 between. What settles it is what they say — *I'm next to the tree*, *I'm in
-the biggest Meadow*, *I'm not on the top edge of the board*, *I'm next to the
+the biggest Meadow*, *I'm not on the board's top edge*, *I'm next to the
 fish and the lion* — and every deal is built so that exactly one arrangement of
 the three can be true, and can be found without a single guess.
 
@@ -39,11 +39,14 @@ Levels are curated. Each one was generated in the level editor, looked at by a
 person, playtested and locked in — the game never makes up a board of its own.
 They are played in order, and each opens once the one before it is finished.
 
-They are arranged as a funnel. The first are small, and every animal can be
-placed from its own card. Then boards grow, and animals start to lean on one
-another: first one at a time, then all together. One thing changes at a time
-where possible, and spare clues are taken away just before something new
-arrives, so each level is either a new idea or the same idea with less help.
+They are arranged as a funnel. The first are small, every card is one short,
+positive fact — *I'm in a corner of the board*, *I'm next to the tent* — and
+every animal can be placed from its own card. Then "not" arrives, still one
+fact to a card; then two facts to a card; then animals start to lean on one
+another, first one at a time, then all together, while the clues widen to rows,
+columns and distances. One thing changes at a time where possible, and spare
+clues are taken away just before something new arrives, so each level is either
+a new idea or the same idea with less help.
 
 Progress is kept by level id, not position, so levels added or moved later never
 hand anyone credit for the wrong one.
@@ -63,13 +66,13 @@ shows the same list word for word:
 | I'm 3 steps from the fox. | Count moves up, down, left or right. A diagonal neighbour is 2 steps. |
 | My land borders the fox's land. | A square of my land shares a side with a square of the fox's. |
 | I'm next to the 🌳 tree. | Anything said about an animal can be said about a landmark, and means the same. |
-| I'm (not) on the edge of the board. | The board's outer ring of squares. A land's edges never count. |
-| I'm (not) on the top edge of the board. | The board's top row (and likewise right, bottom, left). A corner of the board is on two edges. |
-| I'm on the edge of the board, but not the top one. | Both of the above at once. |
-| I'm (not) in a corner of the board. | One of the board's four corners — or *a bottom corner*, *the top-left corner*. A land's corners never count. |
-| I'm in the top half of the board. | On an odd board the middle row (column) is in neither half. |
+| I'm (not) on the board's edge. | The board's outer ring of squares. A land's edges never count. |
+| I'm (not) on the board's top edge. | The board's top row (and likewise right, bottom, left). A corner of the board is on two edges. |
+| I'm on the board's edge, but not the top one. | Both of the above at once. |
+| I'm (not) in a corner of the board. | One of the board's four corners — or *a bottom corner*, *the board's top-left corner*. A land's corners never count. |
+| I'm in the board's top half. | On an odd board the middle row (column) is in neither half. |
 | I'm next to another land. | A side-neighbour is in a different land. The board's edge doesn't count. |
-| I'm surrounded by my own land. | All four side-neighbours are in my land, so I'm not on the edge of the board. |
+| I'm surrounded by my own land. | All four side-neighbours are in my land, so I'm not on the board's edge. |
 | I'm (not) next to Desert. | A side-neighbour is (none is) in a Desert land. Only other colours are named. |
 | I'm in the biggest (smallest) Meadow. | More (fewer) squares than any other Meadow, landmarks counted. Or *not the biggest*. |
 | I'm in row 3 (column 3). | Counted from 1 at the top or left. Off unless a level asks for it. |
@@ -82,11 +85,13 @@ however sound the logic behind it — so the meanings live in `src/clues.js`,
 beside the code that evaluates each clue, and the audit fails if any kind of
 clue is missing from the list.
 
-Several clues from one animal fold into one sentence: *I'm next to the fish and
-the tree*, *I'm in a bottom corner of the board*, *I'm on the edge of the board,
-but not the right one*.
+From the Lines rung up, several clues from one animal fold into one sentence:
+*I'm next to the fish and the tree*, *I'm in a bottom corner of the board*,
+*I'm on the board's edge, but not the right one*. No sentence ever lists more
+than two things.
 
-Every edge, corner and half is the board's, and says so. Lands have edges and
+Every edge, corner and half is the board's, and says so — the short way, "the
+board's top edge" rather than "the top edge of the board". Lands have edges and
 corners too, and "I'm on an edge" said by an animal standing in a land is a fair
 question — whose? Clues about an animal's own land say "land" instead: *I'm next
 to another land*, *I'm surrounded by my own land*.
@@ -106,8 +111,7 @@ A level that says the same kind of thing over and over is a level with one idea
 in it. The generator weighs repetition heavily when it picks clues — most of all
 within a deal, where repeats sit side by side — and the editor shows what each
 level says most often, so a repetitive one can be rerolled before it is locked
-in. Across the first five starter levels the most common kind of sentence is
-15% of what is said; before landmarks, "I'm on the ___ edge" alone was 30%.
+in. No starter level uses any kind of sentence more than twice.
 
 Clues are only ever about one or two fixed squares — never a tally of who is
 nearby. Animals arrive over several deals, so "nothing is next to me" would be
@@ -115,10 +119,30 @@ true when it was dealt and false three deals later. A fact about two fixed
 squares can never go stale, so every clue you have been shown is still true at
 the end.
 
+## How easy the clues are to read
+
+Difficulty has two sides, and the first is how quickly a clue can be read and
+understood. Clues come in four rungs, each adding to the one before:
+
+- **Simple** — one plain, positive fact you can see: a corner or edge of the
+  board, or what the animal is next to. *I'm in a corner of the board. I'm next
+  to the tent.* No "not", nothing to compare.
+- **Plain** — adds "not", the biggest or smallest land, and being surrounded by
+  your own land. Still one fact to a sentence.
+- **Lines** — adds rows, columns, above and below, left and right, halves and
+  diagonals, and lets two facts share a sentence.
+- **Counting** — adds step distances and bordering lands.
+
+At the first two rungs a card is limited in facts, not sentences, and nothing is
+folded into a compound: the first levels carry one fact per card, averaging
+under six words. For those levels the animals are placed where one such fact
+picks them out — the only corner of their colour, the only square beside
+Desert — or beside a landmark placed so that "I'm next to the tree" does.
+
 ## How much the clues lean on each other
 
-The main dial of difficulty is how much a deal's three animals depend on one
-another's cards:
+The other side is how much a deal's three animals depend on one another's
+cards:
 
 - **Alone** — each animal can be placed from its own card. It may mention an
   animal already on the board, since that one is not going anywhere.
@@ -162,10 +186,10 @@ Nothing is typed by hand. The sliders set:
 - **Lands** — a multiple of three (one deal takes one land of each colour); it
   decides how many deals the level has and how big each land is.
 - **Clues lean on each other** — Alone, In turn or Together, as above.
-- **Clue vocabulary** — *Plain* (edges, corners, what an animal is next to),
-  *Lines* (adds rows, columns, above and below, halves, diagonals) or
-  *Counting* (adds step distances and bordering lands).
-- **Most sentences on a card** — keeps cards short.
+- **How easy clues are to read** — *Simple*, *Plain*, *Lines* or *Counting*,
+  as above.
+- **Most facts (or sentences) on a card** — keeps cards short. At Simple and
+  Plain it counts facts; from Lines up, sentences.
 - **Landmarks** — 0 to 3 fixed things animals can mention.
 - **Varied land sizes** — lands of clearly different sizes, so one can be *the
   biggest Meadow*. Off, every land is within a square of the others.

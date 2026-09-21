@@ -27,6 +27,7 @@ import {
   boardContext,
   holds,
   kindsFor,
+  longestList,
   sentenceCount,
   sizeLead,
 } from './clues.js';
@@ -59,7 +60,7 @@ export const DEFAULT_SPEC = {
   N: 6, // board side
   lands: 6, // how many lands; one animal each, three per deal
   tier: 0, // how much a deal's animals may lean on each other -- see deduce.js
-  vocab: 0, // how far along VOCABULARY the clues may reach
+  vocab: 0, // how far along VOCABULARY the clues may reach -- 0 is one plain fact at a time
   spare: 1, // clues per deal beyond the minimum, as confirmation
   perCard: 2, // most sentences any one card may carry
   landmarks: 2, // fixed things on the board that animals can mention
@@ -212,16 +213,122 @@ function placeTrio(R, zones, group, tier, rng) {
 }
 
 /**
+ * Where the animals go on a level meant to be read one fact at a time.
+ *
+ * The first levels ask each animal to be found from one short, positive fact
+ * -- "I'm in a corner of the board", "I'm next to the tree". Placing animals
+ * at random and hoping such a fact exists almost never works: on a 6 x 6 board
+ * a random square is picked out by no single fact at all. So it is done the
+ * other way round. Each animal either goes on a square that one board fact
+ * already picks out among every square its colour could take -- the only
+ * corner, the only square beside Desert -- or anywhere, with a note that a
+ * landmark should be set down beside it so that "I'm next to the tree" does
+ * the picking.
+ *
+ * Which kind of fact picks out each animal is chosen to spread them across the
+ * level: the kind used least so far wins. With one fact to a card and only a
+ * handful of kinds to choose from, leaving it to chance puts "I'm in a corner
+ * of the board" on two cards of three.
+ */
+function placeSimply(R, zones, zoneLand, zoneRound, group, round, rng, wants, plan, allow) {
+  const quick = {
+    R,
+    zoneOf: zones.zoneOf,
+    zoneLand,
+    zoneSize: zones.zoneCells.map((cells) => cells.length),
+  };
+  const pos = new Int32Array(1);
+  const truth = (fact, i) => {
+    pos[0] = i;
+    return holds(fact, quick, pos) === true;
+  };
+  return group.map((z, h) => {
+    // every fact about a square alone that this level may say
+    const facts = [];
+    for (const k of UNARY) {
+      if (!allow.has(k)) continue;
+      if (['biggest', 'smallest', 'notBiggest'].includes(k) && !sizeFair(k, quick, z)) continue;
+      facts.push({ k, n: 0 });
+    }
+    for (let n = 0; n < 4; n++) {
+      if (allow.has('side')) facts.push({ k: 'side', n });
+      if (allow.has('notSide')) facts.push({ k: 'notSide', n });
+    }
+    for (let n = 0; n < LANDS_PER_DEAL; n++) {
+      if (n === h) continue;
+      if (allow.has('nearLand')) facts.push({ k: 'nearLand', n });
+      if (allow.has('notNearLand')) facts.push({ k: 'notNearLand', n });
+    }
+    for (const fact of facts) Object.assign(fact, { a: 0, b: -1 });
+    const cands = [];
+    for (let y = 0; y < zones.count; y++) {
+      if (zoneLand[y] === h && zoneRound[y] >= round) cands.push(...zones.zoneCells[y]);
+    }
+    // every square of this land that some one fact picks out, by kind of fact
+    const byKind = new Map();
+    for (const i of zones.zoneCells[z]) {
+      for (const fact of facts) {
+        if (!truth(fact, i) || !cands.every((j) => j === i || !truth(fact, j))) continue;
+        if (!byKind.has(fact.k)) byKind.set(fact.k, []);
+        byKind.get(fact.k).push(i);
+      }
+    }
+    const kinds = [...byKind.keys()];
+    if (plan.landmarksLeft > 0 && allow.has('touch')) kinds.push('touch');
+    const used = (k) => plan.usage.get(k) || 0;
+    const least = Math.min(...kinds.map(used));
+    const fresh = kinds.filter((k) => used(k) === least);
+    const kind = fresh.length ? fresh[(rng() * fresh.length) | 0] : null;
+    plan.usage.set(kind, used(kind) + 1);
+
+    if (kind && kind !== 'touch') {
+      const cells = byKind.get(kind);
+      return cells[(rng() * cells.length) | 0];
+    }
+    // a landmark will do the picking -- or, with none left, chance will
+    const cells = zones.zoneCells[z];
+    const cell = cells[(rng() * cells.length) | 0];
+    if (kind === 'touch') {
+      plan.landmarksLeft--;
+      wants.push({ cell, cands });
+    }
+    return cell;
+  });
+}
+
+/**
  * Set down the landmarks: never on an animal's square, never two in one land,
  * spread apart, and only in lands big enough to lose a square. A landmark is
  * only worth having if some animal can mention it, so they are drawn to
  * squares near the animals -- close enough that "I'm next to the tree" or
  * "I'm in the tent's row" has a chance of being true, and of being useful.
  */
-function placeLandmarks(R, zones, animals, count, rng) {
+function placeLandmarks(R, zones, animals, count, rng, wants = []) {
   const answers = new Set(animals.map((a) => a.cell));
   const placed = [];
-  for (const entry of shuffle([...LANDMARKS], rng).slice(0, count)) {
+  const names = shuffle([...LANDMARKS], rng).slice(0, count);
+
+  // First, animals waiting on a landmark to pick them out (see placeSimply): a
+  // landmark right beside the animal, and beside no other square its colour
+  // could take, makes "I'm next to the tree" name exactly one square.
+  for (const want of shuffle([...wants], rng)) {
+    if (placed.length >= names.length) break;
+    const used = new Set(placed.map((l) => zones.zoneOf[l.cell]));
+    const options = [];
+    for (let i = 0; i < R.cells; i++) {
+      const z = zones.zoneOf[i];
+      if (manhattan(R, i, want.cell) !== 1) continue;
+      if (answers.has(i) || used.has(z) || zones.zoneCells[z].length < 4) continue;
+      if (placed.some((l) => manhattan(R, l.cell, i) < 2)) continue;
+      if (want.cands.some((j) => j !== want.cell && manhattan(R, i, j) === 1)) continue;
+      options.push(i);
+    }
+    if (!options.length) continue;
+    const { icon, name } = readAnimal(names[placed.length]);
+    placed.push({ icon, name, cell: options[(rng() * options.length) | 0] });
+  }
+
+  for (const entry of names.slice(placed.length)) {
     const used = new Set(placed.map((l) => zones.zoneOf[l.cell]));
     const options = [];
     for (let i = 0; i < R.cells; i++) {
@@ -333,8 +440,19 @@ function buildPool(ctx, subs, earlier, kinds, solution) {
  */
 function chooseClues(cand, pool, ctx, work, subs, spec, spent, rng) {
   const { tier, perCard } = spec;
-  const cardFits = (cl, shown) =>
-    sentenceCount([...shown.filter((c) => c.a === cl.a), cl]) <= perCard;
+  // At the two easiest rungs a card is limited in facts, not sentences, and no
+  // two facts may fold into one compound sentence: "I'm on the board's edge,
+  // but not the left one" is one sentence but two things to hold at once, and
+  // the early levels should ask for one thing at a time. From Lines up, folding
+  // is allowed and the limit counts sentences -- but no sentence lists more
+  // than two things: "I'm next to the fountain, the goat and the bat" is three
+  // facts to hold at once, which is a lot to ask in one breath at any level.
+  const oneByOne = spec.vocab <= 1;
+  const cardFits = (cl, shown) => {
+    const card = [...shown.filter((c) => c.a === cl.a), cl];
+    if (!oneByOne) return sentenceCount(card) <= perCard && longestList(card) <= 2;
+    return card.length <= perCard && sentenceCount(card) === card.length;
+  };
   const leans = (cl) => cl.b >= 0 && subs.includes(cl.b);
   const usedAlready = (cl, shown) =>
     shown.filter((c) => c.k === cl.k && c.a !== cl.a).length + (spent.get(cl.k) || 0);
@@ -438,8 +556,16 @@ function attempt(R, rng, spec) {
   const animals = [];
   const byRound = range(rounds).map(() => []);
   const cast = lands.map((land) => shuffle([...land.animals], rng).slice(0, rounds));
+  // One fact to a card, each animal standing alone: place animals where one
+  // fact can find them (see placeSimply), or such a level almost never builds.
+  const oneFact = spec.tier === 0 && spec.perCard === 1;
+  const allowed = new Set(kindsFor(spec.vocab, spec.coords));
+  const wants = []; // animals a landmark should pick out
+  const plan = { usage: new Map(), landmarksLeft: spec.landmarks ?? 0 };
   groups.forEach((group, r) => {
-    const seats = placeTrio(R, zones, group, spec.tier, rng);
+    const seats = oneFact
+      ? placeSimply(R, zones, zoneLand, zoneRound, group, r, rng, wants, plan, allowed)
+      : placeTrio(R, zones, group, spec.tier, rng);
     group.forEach((z, h) => {
       const { icon, name } = readAnimal(cast[h][r]);
       const id = animals.length;
@@ -448,7 +574,7 @@ function attempt(R, rng, spec) {
     });
   });
 
-  const landmarks = placeLandmarks(R, zones, animals, spec.landmarks ?? 0, rng);
+  const landmarks = placeLandmarks(R, zones, animals, spec.landmarks ?? 0, rng, wants);
   const blocked = new Set(landmarks.map((l) => l.cell));
   const ctx = boardContext({ R, zones, zoneLand, lands, animals, landmarks });
   const solution = Int32Array.from(animals, (a) => a.cell);

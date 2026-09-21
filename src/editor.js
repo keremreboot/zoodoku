@@ -29,7 +29,7 @@ const ui = {};
 for (const id of [
   'slot', 'suggest', 'N', 'NOut', 'lands', 'landsOut', 'tier', 'tierOut', 'tierHint',
   'vocab', 'vocabOut', 'vocabHint', 'perCard', 'perCardOut', 'spare', 'spareOut', 'coords',
-  'landmarks', 'landmarksOut', 'varied',
+  'landmarks', 'landmarksOut', 'varied', 'perCardLabel',
   'generate', 'playtest', 'lock', 'genStatus', 'previewTitle', 'answers', 'stage', 'stats',
   'deals', 'count', 'funnel', 'book', 'saveStatus', 'download',
 ]) {
@@ -112,6 +112,8 @@ function syncLabels() {
   ui.tierHint.textContent = `${TIERS[spec.tier].blurb[0].toUpperCase()}${TIERS[spec.tier].blurb.slice(1)}.`;
   ui.vocabOut.textContent = VOCABULARY[spec.vocab].name;
   ui.vocabHint.textContent = `${VOCABULARY[spec.vocab].blurb[0].toUpperCase()}${VOCABULARY[spec.vocab].blurb.slice(1)}.`;
+  // at the two easiest rungs a card is limited in facts: nothing is folded together
+  ui.perCardLabel.textContent = spec.vocab <= 1 ? 'Most facts on a card' : 'Most sentences on a card';
   ui.perCardOut.textContent = String(spec.perCard);
   ui.spareOut.textContent = String(spec.spare);
   ui.landmarksOut.textContent = String(spec.landmarks);
@@ -188,13 +190,13 @@ function received({ level, ms }) {
 /** What to loosen when nothing fits -- in the order most likely to help. */
 function advice(spec) {
   const tips = [];
-  if (spec.vocab === 0 && spec.N >= 7) {
-    tips.push('a wider vocabulary (plain clues can’t pin the middle of a big board)');
+  if (spec.vocab <= 1 && spec.N >= 7) {
+    tips.push('a harder-to-read rung (simple clues can’t pin the middle of a big board)');
   }
   if (spec.tier === 0 && spec.landmarks < 3) tips.push('more landmarks');
-  if (spec.perCard < 3) tips.push('more sentences per card');
+  if (spec.perCard < 3) tips.push(spec.vocab <= 1 ? 'more facts per card' : 'more sentences per card');
   if (spec.tier < 2) tips.push('letting clues lean on each other more');
-  if (spec.vocab < 2 && !tips[0]?.startsWith('a wider')) tips.push('a wider vocabulary');
+  if (spec.vocab < 3 && !tips[0]?.startsWith('a harder')) tips.push('a harder-to-read rung');
   if (spec.N > 5) tips.push('a smaller board');
   return `Nothing fits these settings in 80 tries. Try ${tips.slice(0, 3).join(', or ')}.`;
 }

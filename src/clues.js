@@ -85,37 +85,46 @@ export const COORDS = ['inRow', 'inColumn'];
  * The clue vocabulary, in the order a player meets it. Each step includes the
  * ones before it. The editor's vocabulary slider picks how far along to go.
  *
- * Plain is everything you can check by looking at the squares around an
- * animal: edges, corners, what it is next to, which land is biggest. Lines
- * adds relationships along rows and columns, which ask you to trace across the
- * board. Counting adds step distances and bordering lands, which ask you to
- * count or to think about a whole land at once.
+ * How hard a clue is has two sides. One is how much it leans on other animals,
+ * which is the tier (deduce.js). The other is how fast it can be read and
+ * understood, and that is what this ladder is for.
+ *
+ * Simple is one plain, positive fact you can see: a corner or an edge of the
+ * board, or what the animal is next to. No "not", no comparing, nothing that
+ * has to be held in the head while something else is checked. Plain adds the
+ * negatives and whole-land facts (biggest, surrounded) -- still one fact to a
+ * sentence: at these two rungs a card is limited in facts, and nothing is
+ * folded into a compound. Lines adds relationships along rows and columns,
+ * which ask you to trace across the board, and lets facts fold together ("on
+ * the board's edge, but not the top one"). Counting adds step distances and
+ * bordering lands, which ask you to count or to think about two whole lands
+ * at once.
  */
 export const VOCABULARY = [
   {
+    name: 'Simple',
+    blurb: 'one plain fact: a corner or edge of the board, or what an animal is next to',
+    kinds: ['corner', 'side', 'rim', 'nearLand', 'touch'],
+  },
+  {
     name: 'Plain',
-    blurb: "the board's edges and corners, what an animal is next to, the biggest land",
+    blurb: "adds “not”, the biggest land, and being surrounded by your own land -- still one fact to a sentence",
     kinds: [
-      'corner',
       'notCorner',
-      'side',
       'notSide',
-      'rim',
       'inland',
-      'nearLand',
       'notNearLand',
       'zoneEdge',
       'zoneCore',
       'biggest',
       'smallest',
       'notBiggest',
-      'touch',
       'notTouch',
     ],
   },
   {
     name: 'Lines',
-    blurb: 'adds rows, columns, above/below, left/right, halves, diagonals',
+    blurb: 'adds rows, columns, above/below, left/right, halves, diagonals, and sentences that combine facts',
     kinds: [
       'sameRow',
       'notSameRow',
@@ -336,11 +345,13 @@ export function holds(cl, ctx, pos) {
 // easily than long ones, which is what GLOSSARY is for: every short sentence
 // has one exact meaning written down, and the key shows it.
 //
-// The one place brevity gives way: every edge, corner and half says "of the
-// board". A land has edges and corners too, and "I'm on an edge" said by an
-// animal standing in a land is a fair question -- whose edge? Clues about the
-// animal's land say "land" instead ("I'm next to another land"), so no
-// sentence leaves the player to guess which one is meant.
+// Every edge, corner and half names the board: a land has edges and corners
+// too, and "I'm on an edge" said by an animal standing in a land is a fair
+// question -- whose edge? It is said the short way, "the board's bottom edge",
+// not "the bottom edge of the board": two words fewer on every card, which on
+// the first levels is most of the card. Clues about the animal's land say
+// "land" instead ("I'm next to another land"), so no sentence leaves the
+// player to guess which one is meant.
 
 const SIDES = ['top', 'right', 'bottom', 'left'];
 
@@ -384,27 +395,27 @@ const GROUPABLE = {
     xs.length === 1 ? `My land borders ${xs[0]}'s land.` : `My land borders the lands of ${and(xs)}.`,
   nearLand: (xs) => `I'm next to ${and(xs)}.`,
   notNearLand: (xs) => `I'm not next to ${or(xs)}.`,
-  notSide: (xs) => `I'm not on the ${or(xs)} edge of the board.`,
+  notSide: (xs) => `I'm not on the board's ${or(xs)} edge.`,
 };
 
 function one(cl, ctx) {
   if (GROUPABLE[cl.k]) return GROUPABLE[cl.k]([target(cl, ctx)]);
   switch (cl.k) {
     case 'rim':
-      return "I'm on the edge of the board.";
+      return "I'm on the board's edge.";
     case 'inland':
-      return "I'm not on the edge of the board.";
+      return "I'm not on the board's edge.";
     case 'corner':
       return "I'm in a corner of the board.";
     case 'notCorner':
       return "I'm not in a corner of the board.";
     case 'side':
-      return `I'm on the ${SIDES[cl.n]} edge of the board.`;
+      return `I'm on the board's ${SIDES[cl.n]} edge.`;
     case 'top':
     case 'bottom':
     case 'left':
     case 'right':
-      return `I'm in the ${cl.k} half of the board.`;
+      return `I'm in the board's ${cl.k} half.`;
     case 'zoneEdge':
       return "I'm next to another land.";
     case 'zoneCore':
@@ -431,10 +442,10 @@ function one(cl, ctx) {
  * fold into one sentence, and so do a corner and an edge -- "I'm in a corner of
  * the board. I'm on the bottom edge of the board." is one fact, a bottom
  * corner, and is said as one. Two edges at right angles are a corner too,
- * whether or not "corner" was among the clues. "I'm on the edge of the board"
- * with "I'm not on the top edge" becomes "I'm on the edge of the board, but not
+ * whether or not "corner" was among the clues. "I'm on the board's edge" with
+ * "I'm not on the board's top edge" becomes "I'm on the board's edge, but not
  * the top one", and a corner with it becomes "I'm in a corner of the board, but
- * not a top one" -- saying "of the board" twice in two sentences is the kind of
+ * not a top one" -- naming the board twice in two sentences is the kind of
  * weight the short style exists to avoid.
  *
  * This is the single source for what makes a sentence: the card's wording
@@ -489,7 +500,7 @@ function say(group, ctx) {
   const [first] = group.clues;
   if (group.as === 'namedCorner') {
     const [upDown, leftRight] = group.clues;
-    return `I'm in the ${SIDES[upDown.n]}-${SIDES[leftRight.n]} corner of the board.`;
+    return `I'm in the board's ${SIDES[upDown.n]}-${SIDES[leftRight.n]} corner.`;
   }
   if (group.as === 'sideCorner') {
     return `I'm in a ${SIDES[group.clues[1].n]} corner of the board.`;
@@ -498,7 +509,7 @@ function say(group, ctx) {
     return `I'm in a corner of the board, but not a ${or(group.clues.slice(1).map((c) => SIDES[c.n]))} one.`;
   }
   if (group.as === 'edgeBut') {
-    return `I'm on the edge of the board, but not the ${or(group.clues.slice(1).map((c) => SIDES[c.n]))} one.`;
+    return `I'm on the board's edge, but not the ${or(group.clues.slice(1).map((c) => SIDES[c.n]))} one.`;
   }
   if (GROUPABLE[first.k]) return GROUPABLE[first.k](group.clues.map((c) => target(c, ctx)));
   return one(first, ctx);
@@ -521,6 +532,14 @@ export function phrase(clues, ctx) {
 
 /** How many sentences these clues make on a card. */
 export const sentenceCount = (clues) => fold(clues).length;
+
+/**
+ * The most things any one sentence on the card lists -- "I'm next to the fish
+ * and the tree" lists two. A named corner is one idea however many facts it
+ * folds, so only the lists count.
+ */
+export const longestList = (clues) =>
+  Math.max(0, ...fold(clues).filter((g) => GROUPABLE[g.as]).map((g) => g.clues.length));
 
 /**
  * Every clue the game can say, and exactly what it means -- shown in the key
@@ -571,22 +590,22 @@ export const GLOSSARY = [
   },
   {
     kinds: ['rim', 'inland'],
-    say: "I'm on the edge of the board. (Or not.)",
+    say: "I'm on the board's edge. (Or not.)",
     means: "The board's outer ring of squares. The edges of lands never count.",
   },
   {
     kinds: ['side', 'notSide'],
-    say: "I'm on the top edge of the board. (Or right, bottom, left; or not.)",
+    say: "I'm on the board's top edge. (Or right, bottom, left; or not.)",
     means: "The board's top row (or right column, and so on). A corner of the board is on two of its edges.",
   },
   {
     kinds: ['corner', 'notCorner'],
-    say: "I'm in a corner of the board. (Or a bottom corner, the top-left corner; or not.)",
+    say: "I'm in a corner of the board. (Or a bottom corner, the board's top-left corner; or not.)",
     means: "One of the board's four corner squares — or the two along that edge, or exactly that one. The corners of lands never count.",
   },
   {
     kinds: ['top', 'bottom', 'left', 'right'],
-    say: "I'm in the top half of the board. (Or bottom, left, right.)",
+    say: "I'm in the board's top half. (Or bottom, left, right.)",
     means:
       'If the board has an odd number of rows, the middle row is in neither half. The same goes for columns.',
   },
@@ -598,7 +617,7 @@ export const GLOSSARY = [
   {
     kinds: ['zoneCore'],
     say: "I'm surrounded by my own land.",
-    means: "All four squares sharing a side with mine are in my land. So I'm not on the edge of the board.",
+    means: "All four squares sharing a side with mine are in my land. So I'm not on the board's edge.",
   },
   {
     kinds: ['nearLand', 'notNearLand'],
