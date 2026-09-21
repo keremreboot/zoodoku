@@ -1,0 +1,11 @@
+{
+  "name": "zoodoku",
+  "private": true,
+  "description": "Three coloured animals a deal. Each goes in a land of its own colour, and what they say about each other leaves exactly one place to put them.",
+  "type": "module",
+  "scripts": {
+    "start": "node tools/serve.mjs",
+    "audit": "node tools/audit.mjs all all 20",
+    "audit:quick": "node tools/audit.mjs standard standard 8 --sample"
+  }
+}

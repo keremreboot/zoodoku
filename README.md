@@ -116,11 +116,33 @@ board.
 ## Running it locally
 
 No build step and no dependencies; plain ES modules, so it needs to be served
-over http rather than opened from the filesystem.
+over http rather than opened from the filesystem. Node is only used for the
+tools below. The game itself runs on anything that serves files.
 
 ```bash
-python -m http.server 8137
+npm start
 ```
+
+That serves the game on http://localhost:8137 (`python -m http.server 8137`
+works just as well).
+
+## Checking the generator
+
+```bash
+npm run audit
+```
+
+The one promise this game makes is that every deal has exactly one answer, so
+that is what gets checked, and without trusting any of the code that made the
+promise. The audit rebuilds the field of legal deals from scratch for 180
+boards across every size and level and brute-forces each deal against its
+clues. It also checks that every clue is true of the answer and that every land
+is whole and fairly sized. It exits non-zero on any failure.
+
+Run it after touching `generate.js`, `clues.js` or `zones.js`. A new kind of
+clue worded one way and evaluated another is exactly the bug it exists to catch.
+`npm run audit:quick` checks one board size and prints a sample board, so you
+can read the clues as a player would.
 
 ## Layout
 
@@ -132,6 +154,9 @@ python -m http.server 8137
 - `src/view.js` — 2D canvas renderer
 - `src/main.js` — cards, pointer and panel handling
 - `src/util.js` — seeded random, shuffling, grid neighbours
+- `tools/audit.mjs` — the independent uniqueness check
+- `tools/serve.mjs` — local server; `POST /snap?name=x` saves a canvas render
+  to `tools/snaps/`, which is how a board gets out of a headless browser for review
 
 Colour is the rule here, so it has to survive a colourblind player: every land
 also writes its name across itself, the way a map does. That label is the
