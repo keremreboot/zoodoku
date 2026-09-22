@@ -156,3 +156,101 @@ export function tierNeeded(open, clues, ctx, pos, subs) {
   }
   return -1;
 }
+
+// --- how hard a deal is to work through --------------------------------------
+//
+// The tier says what kind of reasoning a deal allows. These say how much of it
+// the deal actually asks for, in the terms a player feels:
+//
+//   footholds    how many animals can be placed straight from their own card,
+//                before anything else is known -- a deal with none has no
+//                obvious first move, which is what makes a jump in difficulty
+//                feel like a cliff;
+//   facts        per animal, the fewest ideas (a sentence, or everything one
+//                card says about the same thing) that have to be put together
+//                to pin it, from any card -- 1 is "the card says where", 3 is
+//                three regions that only meet on one square;
+//   rounds       how many waves of deduction the deal takes, when each wave can
+//                only use what the waves before it found: finding the fish
+//                before the bear, and the bear before the owl, is 3.
+
+/** How many of a deal's animals their own card places, before anything else is known. */
+export function footholds(open, clues, ctx, pos, subs) {
+  return subs.filter((a, m) => {
+    if (open[m].length === 1) return true;
+    const own = clues.filter((cl) => cl.a === a);
+    return narrow(open, groupClues(own, subs), ctx, pos, subs, 0)[m].length === 1;
+  }).length;
+}
+
+/** Every way to pick k of n things, as index lists. */
+function* choose(n, k, from = 0, acc = []) {
+  if (acc.length === k) {
+    yield acc;
+    return;
+  }
+  for (let i = from; i <= n - (k - acc.length); i++) yield* choose(n, k, i + 1, [...acc, i]);
+}
+
+/**
+ * Per animal, the fewest ideas that together pin it at the tier -- or cap + 1
+ * when no set that small does. `ideas` is every card's ideas, as clue lists.
+ */
+export function factsNeeded(open, ideas, ctx, pos, subs, tier, cap = 4) {
+  const need = subs.map((_, m) => (open[m].length === 1 ? 0 : cap + 1));
+  for (let k = 1; k <= Math.min(cap, ideas.length); k++) {
+    if (need.every((v) => v <= k)) break;
+    for (const set of choose(ideas.length, k)) {
+      const clues = set.flatMap((i) => ideas[i]);
+      narrow(open, groupClues(clues, subs), ctx, pos, subs, tier).forEach((cells, m) => {
+        if (cells.length === 1 && need[m] > k) need[m] = k;
+      });
+    }
+  }
+  return need;
+}
+
+/**
+ * Waves of deduction. In one wave every group of facts, and the one-land rule,
+ * is applied to what was open at the START of the wave, so a fact that only
+ * works once another animal is found waits for the next one. Infinity if the
+ * deal never finishes at this tier.
+ */
+export function rounds(open, clues, ctx, pos, subs, tier) {
+  const groups = groupClues(clues, subs);
+  const twins = tier > 0 ? sameColour(ctx, subs) : [];
+  const fits = (list) => list.every((cl) => holds(cl, ctx, pos) === true);
+  let dom = open.map((cells) => cells.slice());
+  for (let wave = 1; wave <= 30; wave++) {
+    if (isSolved(dom)) return wave - 1;
+    const was = dom;
+    const next = was.map((cells) => new Set(cells));
+    for (const g of groups) {
+      if (g.b >= 0 && tier === 0) continue;
+      const turns = g.b < 0 ? [[g.a, -1]] : [[g.a, g.b], [g.b, g.a]];
+      for (const [m, o] of turns) {
+        if (o >= 0 && tier === 1 && was[o].length !== 1) continue;
+        for (const x of was[m]) {
+          pos[subs[m]] = x;
+          const ok =
+            o < 0
+              ? fits(g.clues)
+              : was[o].some((y) => {
+                  pos[subs[o]] = y;
+                  return fits(g.clues);
+                });
+          if (!ok) next[m].delete(x);
+        }
+      }
+    }
+    for (const [m, o] of twins) {
+      if (tier === 1 && was[o].length !== 1) continue;
+      const zone = ctx.zoneOf[was[o][0]];
+      if (!was[o].every((y) => ctx.zoneOf[y] === zone)) continue;
+      for (const x of was[m]) if (ctx.zoneOf[x] === zone) next[m].delete(x);
+    }
+    dom = next.map((s) => [...s]);
+    if (dom.every((cells, k) => cells.length === was[k].length)) return Infinity;
+  }
+  return Infinity;
+}

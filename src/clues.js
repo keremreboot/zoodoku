@@ -2,17 +2,18 @@
 //
 // A clue is a plain fact that is true of the finished board, written in the
 // first person because that is how the animal announces it: "I'm next to the
-// fish." Every clue depends only on its own square and, at most, one other
-// fixed thing it names -- another animal, or a landmark. Never on a count of
-// how many animals are nearby, and never on the board as a whole.
+// fish." Every clue depends only on its own square, the lands and landmarks,
+// and at most two other things it names -- and of those, at most one is an
+// animal still to be placed. Never on a count of how many animals are nearby.
 //
 // That restriction is the whole reason the game holds together. Animals arrive
-// in threes over several deals, so anything phrased as a tally ("nothing is
-// next to me") would be true when it was dealt and false three deals later once
-// a neighbour turned up. A fact about fixed squares can never go stale, so
-// every clue a player has been shown is still true at the end. Lands and
-// landmarks never move, so facts about them are fixed too -- "I'm in the
-// biggest Meadow" is as permanent as "I'm in a corner".
+// in threes over several deals, so anything phrased as a tally of animals
+// ("nothing is next to me") would be true when it was dealt and false three
+// deals later once a neighbour turned up. A fact about fixed squares can never
+// go stale, so every clue a player has been shown is still true at the end.
+// Lands and landmarks never move, so facts about them are fixed too -- "I'm in
+// the biggest Meadow", "My land has 9 squares" and "No landmark is in my land"
+// are as permanent as "I'm in a corner".
 //
 // Three things live side by side here on purpose: what each clue means to the
 // game (holds), how it is said (wording), and what the player is told it means
@@ -22,7 +23,10 @@
 //
 // A clue is { k, a, b, n, m }: its kind, the animal saying it, the animal it
 // names (or -1), a number where the kind needs one (which edge, which colour,
-// how many steps), and the landmark it names (absent, or -1, when it names none).
+// how many steps, how many squares), and the landmark it names (absent, or -1,
+// when it names none). A clue that names two things -- "closer to the cactus
+// than to the tree" -- carries the second as m2 (a landmark) or b2 (an animal
+// from an earlier deal, already placed).
 //
 // holds() returns null rather than false when a square the clue depends on is
 // still empty, so "not yet known" is never shown as "broken".
@@ -44,14 +48,40 @@ export const UNARY = [
   'biggest',
   'smallest',
   'notBiggest',
+  'middle',
+  'diagonal',
+  'landRim',
+  'landInland',
+  'noMarkInLand',
 ];
 
 /**
  * Facts about the animal's own square that carry a number: which edge, which
- * land colour, which row or column. Built separately because each has several
- * versions.
+ * land colour, which row or column, how many lands around it, how big its land
+ * is. Built separately because each has several versions.
  */
-export const NUMBERED = ['side', 'notSide', 'nearLand', 'notNearLand', 'inRow', 'inColumn'];
+export const NUMBERED = [
+  'side',
+  'notSide',
+  'nearLand',
+  'notNearLand',
+  'inRow',
+  'inColumn',
+  'landsAround',
+  'landBorders',
+  'landSize',
+];
+
+/** A fact that can only name a landmark: "the tree is in my land". An animal's land never holds another animal. */
+export const MARK_ONLY = ['markInLand'];
+
+/**
+ * Facts that name two things -- "I'm closer to the cactus than to the tree",
+ * "I'm next to the fountain or the shark". The second is always something
+ * fixed, a landmark or an animal from an earlier deal, so the fact still ties
+ * the animal to at most one other animal still in play.
+ */
+export const TWO_REF = ['closer', 'eitherTouch'];
 
 /**
  * Facts that name something else: another animal, or a landmark. `steps`
@@ -76,7 +106,14 @@ export const BINARY = [
 /** What can be said about a landmark: everything said of an animal, bar whose land it is in. */
 export const LANDMARK_KINDS = [...BINARY.filter((k) => k !== 'zoneTouch'), 'steps'];
 
-export const ALL_KINDS = [...UNARY, ...NUMBERED, ...BINARY, 'steps'];
+export const ALL_KINDS = [...UNARY, ...NUMBERED, ...BINARY, 'steps', ...MARK_ONLY, ...TWO_REF];
+
+/**
+ * Facts about the board alone -- no landmark, no other animal -- which is what
+ * the generator can plan an animal's square around before any landmark is set
+ * down.
+ */
+export const BOARD_FACTS = [...UNARY.filter((k) => k !== 'noMarkInLand'), 'side', 'notSide', 'nearLand', 'notNearLand', 'landsAround', 'landBorders', 'landSize'];
 
 /** Bare coordinates. Plain, but they hand over the answer rather than pose it. */
 export const COORDS = ['inRow', 'inColumn'];
@@ -90,25 +127,31 @@ export const COORDS = ['inRow', 'inColumn'];
  * understood, and that is what this ladder is for.
  *
  * Simple is one plain, positive fact you can see: a corner or an edge of the
- * board, or what the animal is next to. No "not", no comparing, nothing that
- * has to be held in the head while something else is checked. Plain adds the
- * negatives and whole-land facts (biggest, surrounded) -- still one fact to a
- * sentence: at these two rungs a card is limited in facts, and nothing is
- * folded into a compound. Lines adds relationships along rows and columns,
- * which ask you to trace across the board, and lets facts fold together ("on
- * the board's edge, but not the top one"). Counting adds step distances and
- * bordering lands, which ask you to count or to think about two whole lands
- * at once.
+ * board, the middle of it, what the animal is next to, a landmark standing in
+ * its land. No "not", no comparing, nothing that has to be held in the head
+ * while something else is checked. Plain adds the negatives and whole-land
+ * facts (biggest, surrounded, what the land borders, whether it reaches the
+ * board's edge) -- still one fact to a sentence: at these two rungs a card is
+ * limited in facts, and nothing is folded into a compound. Lines adds
+ * relationships along rows and columns, which ask you to trace across the
+ * board, "or", and lets facts fold together ("on the board's edge, but not the
+ * top one"). Counting adds step distances, comparing two distances, the size
+ * of a land and bordering lands, which ask you to count or to think about two
+ * whole lands at once.
+ *
+ * Many of the newer kinds are broad on purpose: "The tree is in my land" or "My
+ * land borders Ocean" leaves an animal a good handful of squares, which is
+ * what a level with depth needs -- facts that each draw a region, and meet.
  */
 export const VOCABULARY = [
   {
     name: 'Simple',
-    blurb: 'one plain fact: a corner or edge of the board, or what an animal is next to',
-    kinds: ['corner', 'side', 'rim', 'nearLand', 'touch'],
+    blurb: 'one plain fact: a corner, edge or the middle of the board, what an animal is next to, a landmark in its land',
+    kinds: ['corner', 'side', 'rim', 'nearLand', 'touch', 'markInLand', 'middle'],
   },
   {
     name: 'Plain',
-    blurb: "adds “not”, the biggest land, and being surrounded by your own land -- still one fact to a sentence",
+    blurb: "adds “not” and whole-land facts: the biggest, surrounded, what it borders, whether it reaches the board's edge -- still one fact to a sentence",
     kinds: [
       'notCorner',
       'notSide',
@@ -120,12 +163,19 @@ export const VOCABULARY = [
       'smallest',
       'notBiggest',
       'notTouch',
+      'landsAround',
+      'landBorders',
+      'landRim',
+      'landInland',
+      'noMarkInLand',
     ],
   },
   {
     name: 'Lines',
-    blurb: 'adds rows, columns, above/below, left/right, halves, diagonals, and sentences that combine facts',
+    blurb: 'adds rows, columns, above/below, left/right, halves, diagonals, “or”, and sentences that combine facts',
     kinds: [
+      'diagonal',
+      'eitherTouch',
       'sameRow',
       'notSameRow',
       'sameCol',
@@ -144,8 +194,8 @@ export const VOCABULARY = [
   },
   {
     name: 'Counting',
-    blurb: 'adds step distances and bordering lands',
-    kinds: ['steps', 'zoneTouch'],
+    blurb: 'adds step distances, which of two things is closer, land sizes and bordering lands',
+    kinds: ['steps', 'zoneTouch', 'closer', 'landSize'],
   },
 ];
 
@@ -165,9 +215,20 @@ export const RANK = {
   corner: 0,
   side: 0,
   nearLand: 0,
+  markInLand: 0,
+  middle: 1,
   biggest: 1,
   smallest: 1,
   rim: 1,
+  landBorders: 1,
+  landsAround: 2,
+  landRim: 2,
+  landInland: 2,
+  noMarkInLand: 3,
+  diagonal: 3,
+  eitherTouch: 4,
+  landSize: 4,
+  closer: 5,
   notCorner: 2,
   notSide: 2,
   notBiggest: 2,
@@ -207,11 +268,24 @@ export function boardContext({ R, zones, zoneLand, lands, animals, landmarks = [
     zoneOf: zones.zoneOf,
     zoneAdj: zones.zoneAdj,
     zoneSize: zones.zoneCells.map((cells) => cells.length),
+    zoneRim: zoneRim(R, zones),
     zoneLand,
     lands,
     animals,
     landmarks,
   };
+}
+
+/** For each land: does any square of it lie on the board's outer ring? */
+export function zoneRim(R, zones) {
+  const N = R.N;
+  return zones.zoneCells.map((cells) =>
+    cells.some((i) => {
+      const r = R.row(i);
+      const c = R.col(i);
+      return r === 0 || c === 0 || r === N - 1 || c === N - 1;
+    })
+  );
 }
 
 /** The other lands of the same colour, by size. */
@@ -237,6 +311,12 @@ export function sizeLead(ctx, z) {
 function otherSquare(cl, ctx, pos) {
   if (cl.m != null && cl.m >= 0) return ctx.landmarks[cl.m].cell;
   return pos[cl.b];
+}
+
+/** The second thing a two-thing clue names -- always a landmark (m2) or a placed animal (b2). */
+function secondSquare(cl, ctx, pos) {
+  if (cl.m2 != null && cl.m2 >= 0) return ctx.landmarks[cl.m2].cell;
+  return cl.b2 != null && cl.b2 >= 0 ? pos[cl.b2] : -1;
 }
 
 /**
@@ -296,6 +376,25 @@ export function holds(cl, ctx, pos) {
       return rivals(ctx, zone).every((s) => ctx.zoneSize[zone] < s);
     case 'notBiggest':
       return !rivals(ctx, zone).every((s) => ctx.zoneSize[zone] > s);
+    // two or more squares in from every edge: the middle four of a 6 x 6
+    case 'middle':
+      return r >= 2 && c >= 2 && r <= N - 3 && c <= N - 3;
+    // the two corner-to-corner lines
+    case 'diagonal':
+      return r === c || r + c === N - 1;
+    case 'landRim':
+      return ctx.zoneRim[zone];
+    case 'landInland':
+      return !ctx.zoneRim[zone];
+    case 'noMarkInLand':
+      return !ctx.landmarks.some((l) => ctx.zoneOf[l.cell] === zone);
+    // exactly n lands besides mine have a square beside mine
+    case 'landsAround':
+      return new Set(neighbours(R, i).map((n) => ctx.zoneOf[n]).filter((z) => z !== zone)).size === cl.n;
+    case 'landBorders':
+      return [...ctx.zoneAdj[zone]].some((y) => ctx.zoneLand[y] === cl.n);
+    case 'landSize':
+      return ctx.zoneSize[zone] === cl.n;
     default:
       break;
   }
@@ -304,7 +403,16 @@ export function holds(cl, ctx, pos) {
   if (j == null || j < 0) return null;
   const diagonal = chebyshev(R, i, j) === 1 && manhattan(R, i, j) === 2;
 
+  if (cl.k === 'closer' || cl.k === 'eitherTouch') {
+    const k = secondSquare(cl, ctx, pos);
+    if (k < 0) return null;
+    if (cl.k === 'closer') return manhattan(R, i, j) < manhattan(R, i, k);
+    return manhattan(R, i, j) === 1 || manhattan(R, i, k) === 1;
+  }
+
   switch (cl.k) {
+    case 'markInLand':
+      return ctx.zoneOf[j] === zone;
     case 'touch':
       return manhattan(R, i, j) === 1;
     case 'notTouch':
@@ -357,13 +465,21 @@ const SIDES = ['top', 'right', 'bottom', 'left'];
 
 /** What a clue points at: an animal, a landmark, a land colour or an edge. */
 function target(cl, ctx) {
-  if (cl.k === 'nearLand' || cl.k === 'notNearLand') return ctx.lands[cl.n].name;
+  if (cl.k === 'nearLand' || cl.k === 'notNearLand' || cl.k === 'landBorders') return ctx.lands[cl.n].name;
   if (cl.k === 'notSide') return SIDES[cl.n];
   const thing = cl.m != null && cl.m >= 0 ? ctx.landmarks[cl.m] : ctx.animals[cl.b];
   return `the ${thing.icon} ${thing.name}`;
 }
 
+/** The second thing a two-thing clue names. */
+function secondTarget(cl, ctx) {
+  const thing = cl.m2 != null && cl.m2 >= 0 ? ctx.landmarks[cl.m2] : ctx.animals[cl.b2];
+  return `the ${thing.icon} ${thing.name}`;
+}
+
 const ownLand = (cl, ctx) => ctx.lands[ctx.animals[cl.a].land].name;
+const capital = (s) => s[0].toUpperCase() + s.slice(1);
+const NUMBER = ['no', 'one', 'two', 'three', 'four'];
 
 const and = (xs) =>
   xs.length === 1 ? xs[0] : `${xs.slice(0, -1).join(', ')} and ${xs[xs.length - 1]}`;
@@ -396,6 +512,8 @@ const GROUPABLE = {
   nearLand: (xs) => `I'm next to ${and(xs)}.`,
   notNearLand: (xs) => `I'm not next to ${or(xs)}.`,
   notSide: (xs) => `I'm not on the board's ${or(xs)} edge.`,
+  markInLand: (xs) => (xs.length === 1 ? `${capital(xs[0])} is in my land.` : `${capital(and(xs))} are in my land.`),
+  landBorders: (xs) => `My land borders ${and(xs)}.`,
 };
 
 function one(cl, ctx) {
@@ -432,6 +550,24 @@ function one(cl, ctx) {
       return `I'm in column ${cl.n + 1}.`;
     case 'steps':
       return `I'm ${cl.n} steps from ${target(cl, ctx)}.`;
+    case 'middle':
+      return "I'm in the middle of the board.";
+    case 'diagonal':
+      return "I'm on one of the board's diagonals.";
+    case 'landRim':
+      return "My land touches the board's edge.";
+    case 'landInland':
+      return "My land doesn't touch the board's edge.";
+    case 'noMarkInLand':
+      return 'No landmark is in my land.';
+    case 'landsAround':
+      return `I'm next to ${NUMBER[cl.n]} other lands.`;
+    case 'landSize':
+      return `My land has ${cl.n} squares.`;
+    case 'closer':
+      return `I'm closer to ${target(cl, ctx)} than to ${secondTarget(cl, ctx)}.`;
+    case 'eitherTouch':
+      return `I'm next to ${target(cl, ctx)} or ${secondTarget(cl, ctx)}.`;
     default:
       return '';
   }
@@ -536,8 +672,11 @@ export const sentenceCount = (clues) => fold(clues).length;
 /** The clues each sentence on a card speaks for, as the card will fold them. */
 export const sentences = (clues) => fold(clues).map((group) => group.clues);
 
-/** What a clue names besides its own animal: another animal, a landmark, or nothing. */
-const namesOf = (cl) => (cl.m != null && cl.m >= 0 ? [`m${cl.m}`] : cl.b >= 0 ? [`a${cl.b}`] : []);
+/** What a clue names besides its own animal: other animals and landmarks, if any. */
+const namesOf = (cl) => [
+  ...(cl.m != null && cl.m >= 0 ? [`m${cl.m}`] : cl.b >= 0 ? [`a${cl.b}`] : []),
+  ...(cl.m2 != null && cl.m2 >= 0 ? [`m${cl.m2}`] : cl.b2 != null && cl.b2 >= 0 ? [`a${cl.b2}`] : []),
+];
 
 /**
  * A card's sentences, with every sentence about the same other animal or
@@ -651,6 +790,51 @@ export const GLOSSARY = [
     kinds: ['nearLand', 'notNearLand'],
     say: "I'm next to Desert. (Or not next to Desert.)",
     means: 'A square sharing a side with mine is (or none is) in a Desert land. Only other colours are named.',
+  },
+  {
+    kinds: ['eitherTouch'],
+    say: "I'm next to the 🌳 tree or the fox.",
+    means: 'My square shares a side with at least one of the two — maybe both.',
+  },
+  {
+    kinds: ['closer'],
+    say: "I'm closer to the 🌳 tree than to the fox.",
+    means: 'Fewer steps to the first than to the second, counting moves up, down, left or right. The same number of steps is not closer.',
+  },
+  {
+    kinds: ['middle'],
+    say: "I'm in the middle of the board.",
+    means: 'Two or more squares in from every edge of the board — the middle four squares of a 6 × 6 board, the middle nine of a 7 × 7.',
+  },
+  {
+    kinds: ['diagonal'],
+    say: "I'm on one of the board's diagonals.",
+    means: 'On one of the two lines of squares that run from corner to corner of the board.',
+  },
+  {
+    kinds: ['landsAround'],
+    say: "I'm next to two other lands. (Or three.)",
+    means: 'The squares sharing a side with mine lie in exactly two (or three) lands besides my own.',
+  },
+  {
+    kinds: ['markInLand', 'noMarkInLand'],
+    say: 'The 🌳 tree is in my land. (Or: no landmark is in my land.)',
+    means: "The landmark stands inside my land's heavy lines (or no landmark does).",
+  },
+  {
+    kinds: ['landBorders'],
+    say: 'My land borders Ocean.',
+    means: 'A square of my land shares a side with a square of an Ocean land. Only other colours are named.',
+  },
+  {
+    kinds: ['landRim', 'landInland'],
+    say: "My land touches the board's edge. (Or doesn't.)",
+    means: "At least one square of my land is on the board's outer ring (or none is).",
+  },
+  {
+    kinds: ['landSize'],
+    say: 'My land has 9 squares.',
+    means: 'Count every square inside its heavy lines, landmarks too.',
   },
   {
     kinds: ['biggest', 'smallest', 'notBiggest'],

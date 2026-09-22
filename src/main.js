@@ -312,6 +312,9 @@ function spotlightFor(id) {
   for (const cl of game.deal.clues) {
     if (cl.a === id && cl.b >= 0) animals.add(cl.b);
     if (cl.a === id && cl.m != null && cl.m >= 0) marks.add(cl.m);
+    // the second thing a two-thing clue names: "closer to the cactus than to the tree"
+    if (cl.a === id && cl.b2 != null && cl.b2 >= 0) animals.add(cl.b2);
+    if (cl.a === id && cl.m2 != null && cl.m2 >= 0) marks.add(cl.m2);
     if (cl.b === id) animals.add(cl.a);
   }
   return { animals: [...animals], marks: [...marks] };

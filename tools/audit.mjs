@@ -8,8 +8,9 @@
 //     generator's own, so a bug in one cannot hide behind the same bug in the
 //     other;
 //   - every deal has exactly one answer, by trying every arrangement;
-//   - no sentence, read on its own, pins an animal down further than the
-//     level's depth allows;
+//   - no idea, read on its own, pins an animal down further than the level's
+//     depth allows, and each deal has exactly the number of starting points
+//     -- animals their own card places -- that the level promises;
 //   - every clue is true of the answer, and is a kind the key explains;
 //   - every land is whole and a fair size, one animal to a land, right colour;
 //   - no animal and no other landmark stands on a landmark, and every
@@ -30,7 +31,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { makeLevel } from '../src/generate.js';
 import { FUNNEL } from '../src/funnel.js';
-import { ALL_KINDS, GLOSSARY, chunks, holds, phrase } from '../src/clues.js';
+import { ALL_KINDS, GLOSSARY, holds, ideas, phrase } from '../src/clues.js';
 import { TIERS } from '../src/deduce.js';
 import { puzzleFromLevel, LEVEL_FILE } from '../src/levels.js';
 import { makeRules, mulberry32, neighbours } from '../src/util.js';
@@ -73,11 +74,17 @@ function connected(R, cells) {
  * one lies in a single land.
  */
 function deducible(p, deal, cand, tier) {
+  const open = eliminate(p, deal, cand, tier, deal.clues);
+  return deal.animals.every((id) => open.get(id).size === 1);
+}
+
+/** What is still open to each animal once these clues have crossed off all they can. */
+function eliminate(p, deal, cand, tier, given) {
   const inDeal = new Set(deal.animals);
   const pos = Int32Array.from(p.animals, (a) => (a.round < deal.round ? a.cell : -1));
 
   const about = new Map();
-  for (const cl of deal.clues) {
+  for (const cl of given) {
     const ids = [cl.a, cl.b].filter((id) => inDeal.has(id)).sort((x, y) => x - y);
     const key = ids.join(',');
     if (!about.has(key)) about.set(key, { ids, clues: [] });
@@ -133,7 +140,7 @@ function deducible(p, deal, cand, tier) {
       }
     }
   }
-  return deal.animals.every((id) => open.get(id).size === 1);
+  return open;
 }
 
 function auditPuzzle(p, tier) {
@@ -169,7 +176,7 @@ function auditPuzzle(p, tier) {
     if (marked.has(a.cell)) problems.push(`${a.name}'s square is under a landmark`);
   }
   (p.landmarks ?? []).forEach((mark, m) => {
-    if (!p.deals.some((d) => d.clues.some((cl) => cl.m === m))) {
+    if (!p.deals.some((d) => d.clues.some((cl) => cl.m === m || cl.m2 === m))) {
       problems.push(`the ${mark.name} is never mentioned`);
     }
   });
@@ -233,15 +240,17 @@ function auditPuzzle(p, tier) {
       problems.push(`deal ${r + 1}: cannot be solved at "${TIERS[tier].name}" without a guess`);
     }
 
-    // Depth: each sentence alone, against every square each animal could
+    // Depth: each idea alone -- a sentence, or everything one card says about
+    // the same animal or landmark -- against every square each animal could
     // take, must leave the animals it mentions at least `depth` squares (or,
     // for one that had few to begin with, all but one). Counted by brute force:
     // a square survives if some squares for the other animals of the deal
-    // make every fact in the sentence true.
+    // make every fact in the idea true.
     const depth = p.spec?.depth ?? 1;
     if (depth > 1) {
       for (const id of deal.animals) {
-        for (const part of chunks(deal.clues.filter((cl) => cl.a === id), p.ctx)) {
+        for (const idea of ideas(deal.clues.filter((cl) => cl.a === id))) {
+          const part = { clues: idea, text: phrase(idea, p.ctx) };
           const trial = Int32Array.from(work);
           const named = new Set(part.clues.flatMap((cl) => [cl.a, cl.b]));
           const mentioned = deal.animals.map((a) => named.has(a));
@@ -270,6 +279,17 @@ function auditPuzzle(p, tier) {
           });
         }
       }
+    }
+    // Starting points: exactly as many animals as the level promises can be
+    // placed from their own card alone, before anything else is known.
+    const promised = p.spec?.footholds;
+    const at = Array.isArray(promised) ? promised[Math.min(r, promised.length - 1)] : promised;
+    if (tier > 0 && at != null) {
+      const want = Math.min(at, deal.animals.length);
+      const got = deal.animals.filter(
+        (id) => eliminate(p, deal, cand, 0, deal.clues.filter((cl) => cl.a === id)).get(id).size === 1
+      ).length;
+      if (got !== want) problems.push(`deal ${r + 1}: ${got} animals can be placed from their own card, want ${want}`);
     }
     stats.push({ clues: deal.clues.length, guess: !fair });
   }

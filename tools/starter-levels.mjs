@@ -1,28 +1,41 @@
 // Rebuild the starter levels: one per funnel step, overwriting levels/levels.json.
 //
-// For each step it generates up to thirty candidates, keeps only those that need the
-// step's tier (a step introducing "in turn" must actually need it), prefers ones
-// whose two-of-a-colour deals actually need both lands, never dips below the
-// previous level's difficulty, then picks the most varied: fewest
-// repeats of any one kind of sentence, then the most kinds. Deterministic seeds,
-// so a rerun gives the same levels until the generator changes.
+// The first KEEP levels are copied from the current file untouched -- same
+// boards, same ids -- and only re-measured; the rest are rebuilt. For each step
+// it generates up to thirty candidates, keeps only those that need the step's
+// tier (a step introducing "in turn" must actually need it), prefers ones whose
+// two-of-a-colour deals actually need both lands, never dips below the previous
+// level's difficulty or climbs more than half again above it (if it can help
+// it), then picks the most varied: fewest repeats of any one kind of sentence,
+// then the fewest "not"s, then the most kinds. Deterministic seeds, so a
+// rerun gives the same levels until the generator changes.
 //
 // THIS OVERWRITES levels/levels.json. Use it only while the levels are still the
 // generated starter set -- once levels have been curated in the editor, don't.
-// Level ids are random, so even an identical rebuild gets new ids, and players
-// lose their progress on every level (progress is kept by id).
+// Level ids are random, so a rebuilt level gets a new id, and players lose their
+// progress on it (progress is kept by id).
 //
-//   node tools/starter-levels.mjs
+//   node tools/starter-levels.mjs [keep]      keep defaults to 4
 import fs from 'node:fs';
 import { makeLevel } from '../src/generate.js';
 import { FUNNEL } from '../src/funnel.js';
-import { serializeLevel, formatBook, emptyBook, puzzleFromLevel } from '../src/levels.js';
+import { serializeLevel, formatBook, emptyBook, measure, puzzleFromLevel } from '../src/levels.js';
 import { chunks, VOCABULARY } from '../src/clues.js';
 import { makeRules, mulberry32 } from '../src/util.js';
 
+const KEEP = Number(process.argv[2] ?? 4);
+const file = new URL('../levels/levels.json', import.meta.url);
+const old = fs.existsSync(file) ? JSON.parse(fs.readFileSync(file, 'utf8')) : emptyBook();
 const book = emptyBook();
 let floor = 0;
 FUNNEL.forEach((spec, step) => {
+  if (step < KEEP && old.levels[step]) {
+    const lv = { ...old.levels[step], stats: measure(puzzleFromLevel(old.levels[step])) };
+    book.levels.push(lv);
+    floor = lv.stats.difficulty;
+    console.log(`level ${String(step + 1).padStart(2)}: kept as it was (difficulty ${lv.stats.difficulty})`);
+    return;
+  }
   const built = [];
   for (let s = 0; built.length < 30 && s < 120; s++) {
     const seed = 20260923 + step * 1000 + s;
@@ -42,9 +55,16 @@ FUNNEL.forEach((spec, step) => {
     const keep = every.length ? every : some;
     if (keep.length) built.splice(0, built.length, ...keep);
   }
+  // A step up, not a leap: players said the difficulty jumped, so keep to
+  // candidates within half again of the level before, if there are any -- and
+  // failing that, the gentlest there are.
+  const gentle = built.filter((lv) => lv.stats.difficulty <= Math.max(floor * 1.5, floor + 3));
+  if (gentle.length) built.splice(0, built.length, ...gentle);
+  else built.sort((x, y) => x.stats.difficulty - y.stats.difficulty).splice(3);
   built.sort(
     (x, y) =>
       x.stats.repeats.most.uses - y.stats.repeats.most.uses ||
+      x.stats.nots - y.stats.nots ||
       y.stats.repeats.kinds - x.stats.repeats.kinds
   );
   const pick = built[0];
@@ -59,7 +79,7 @@ FUNNEL.forEach((spec, step) => {
       ` difficulty ${String(pick.stats.difficulty).padStart(2)}, most repeated x${pick.stats.repeats.most.uses}`
   );
 });
-fs.writeFileSync(new URL('../levels/levels.json', import.meta.url), formatBook(book));
+fs.writeFileSync(file, formatBook(book));
 console.log(`wrote ${book.levels.length} levels\n`);
 
 book.levels.slice(0, 3).forEach((lv, k) => {

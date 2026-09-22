@@ -61,6 +61,11 @@
           <p class="hint" id="depthHint"></p>
         </div>
         <div class="knob">
+          <label for="footholds">Starting points per deal <output id="footholdsOut"></output></label>
+          <input type="range" id="footholds" min="-1" max="3" step="1" />
+          <p class="hint">How many animals a deal lets you place straight from their own card. The rest have to be found through them — fewer starting points is harder. Only counts when clues lean on each other.</p>
+        </div>
+        <div class="knob">
           <label for="pairs">Two of one colour <output id="pairsOut"></output></label>
           <input type="range" id="pairs" min="0" max="0" step="1" />
           <p class="hint">Deals that bring two animals of the same colour. A land takes one, so pinning one to a land shuts the other out of it. They come two deals at a time.</p>

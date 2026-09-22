@@ -40,17 +40,22 @@ person, playtested and locked in — the game never makes up a board of its own.
 Every level is open from the start; they are meant to be played in order, and
 the level list ticks off the ones finished.
 
-They are arranged as a funnel. The first four are small, every card is one
-short, positive fact — *I'm in a corner of the board*, *I'm next to the tent* —
-and every animal can be placed from its own card. Then depth arrives: two facts
-to a card, neither of which says where the animal is by itself — *I'm on the
-board's right edge. I'm next to Ocean.* — first in the same simple words, then
-with "not". Then animals start to lean on one another, first one at a time,
-then deals bring two animals of one colour, then all together, while the clues
-widen to rows, columns and distances and each sentence gives away less. One
-thing changes at a time where possible, and spare clues are taken away just
-before something new arrives, so each level is either a new idea or the same
-idea with less help.
+There are fifteen, arranged as a funnel. The first four are small, every card
+is one short, positive fact — *I'm in a corner of the board*, *I'm next to the
+tent* — and every animal can be placed from its own card. Then depth arrives:
+two facts to a card, neither of which says where the animal is by itself —
+*I'm on the board's edge. I'm next to Ocean.* — first in the same simple words,
+then vaguer ones. Then animals start to lean on one another: two of a deal
+still found from their own card and the third through them, then deals that
+bring two animals of one colour, then fewer starting points, then all together,
+while the clues widen to rows, columns and distances and each sentence gives
+away less. The last level's final deals have no starting point at all.
+
+Players said the difficulty jumped too suddenly, so the funnel turns one dial
+at a time and is checked with numbers (see *Measuring difficulty*): no level
+is more than about half again as hard as the one before. Spare clues are taken
+away just before something new arrives, so each level is either a new idea or
+the same idea with less help.
 
 Progress is kept by level id, not position, so levels added or moved later never
 hand anyone credit for the wrong one.
@@ -78,8 +83,23 @@ shows the same list word for word:
 | I'm next to another land. | A side-neighbour is in a different land. The board's edge doesn't count. |
 | I'm surrounded by my own land. | All four side-neighbours are in my land, so I'm not on the board's edge. |
 | I'm (not) next to Desert. | A side-neighbour is (none is) in a Desert land. Only other colours are named. |
+| I'm next to the 🌳 tree or the fox. | Next to at least one of the two — maybe both. |
+| I'm closer to the 🌳 tree than to the fox. | Fewer steps to the first than the second. The same number of steps is not closer. |
+| I'm in the middle of the board. | Two or more squares in from every edge — the middle four of a 6 × 6. |
+| I'm on one of the board's diagonals. | The two corner-to-corner lines. |
+| I'm next to two (three) other lands. | Side-neighbours lie in exactly two (three) lands besides mine. |
+| The 🌳 tree is in my land. | The landmark stands inside my land's heavy lines. Or *no landmark is in my land*. |
+| My land borders Ocean. | A square of my land shares a side with an Ocean land. Only other colours are named. |
+| My land touches the board's edge. | Some square of my land is on the outer ring. Or *doesn't touch*. |
 | I'm in the biggest (smallest) Meadow. | More (fewer) squares than any other Meadow, landmarks counted. Or *not the biggest*. |
+| My land has 9 squares. | Landmarks counted. |
 | I'm in row 3 (column 3). | Counted from 1 at the top or left. Off unless a level asks for it. |
+
+Many of these are vague on purpose. "The tree is in my land" or "My land
+borders Ocean" leaves an animal a good handful of squares — which is what depth
+needs: facts that each draw a region, and meet. The land facts also ask the
+player to look at a whole land rather than a square, which the older clues
+never did.
 
 Clues are short on purpose, and a card never carries more than a set number of
 sentences. Short words can be read two ways more easily than long ones, which is
@@ -136,17 +156,21 @@ the end.
 
 ## How easy the clues are to read
 
-Difficulty has three sides, and the first is how quickly a clue can be read and
-understood. Clues come in four rungs, each adding to the one before:
+Difficulty has several sides, and the first is how quickly a clue can be read
+and understood. Clues come in four rungs, each adding to the one before:
 
-- **Simple** — one plain, positive fact you can see: a corner or edge of the
-  board, or what the animal is next to. *I'm in a corner of the board. I'm next
-  to the tent.* No "not", nothing to compare.
-- **Plain** — adds "not", the biggest or smallest land, and being surrounded by
-  your own land. Still one fact to a sentence.
+- **Simple** — one plain, positive fact you can see: a corner, edge or the
+  middle of the board, what the animal is next to, a landmark standing in its
+  land. *I'm in a corner of the board. The tree is in my land.* No "not",
+  nothing to compare.
+- **Plain** — adds "not" and whole-land facts: the biggest or smallest land,
+  being surrounded by your own land, how many lands you're next to, what your
+  land borders, whether it reaches the board's edge. Still one fact to a
+  sentence.
 - **Lines** — adds rows, columns, above and below, left and right, halves and
-  diagonals, and lets two facts share a sentence.
-- **Counting** — adds step distances and bordering lands.
+  diagonals, "this or that", and lets two facts share a sentence.
+- **Counting** — adds step distances, which of two things is closer, land
+  sizes and bordering lands.
 
 At the first two rungs a card is limited in facts, not sentences, and nothing is
 folded into a compound: the first levels carry one fact per card, averaging
@@ -203,9 +227,57 @@ landmark counts as one sentence here: *I'm next to the tent. I'm right of the
 tent.* is one square said in two halves, not two facts that meet. (An animal
 with only a few squares to begin with need only lose one.)
 
-Depth 2 arrives with two facts to a card; depth 3 with the bigger boards. It
-does not make cards wordier: across the levels from 5 on, cards carry about 1.7
-sentences each, and fewer of them say "not" than before depth existed.
+Depth 2 arrives with two facts to a card at level 5, depth 3 at level 6, depth
+4 with "together". But depth is only a floor, and a floor alone leaves every
+sentence sitting right on it — on the early levels each still left about two
+squares, which reads as pointing at a tile. So the generator aims for vague
+facts, not just allows them. Animals standing alone, and the starting animals
+of later deals, are placed where two *broad* facts meet, and among the sets of
+facts that pin an animal, the one whose sharper fact leaves the most squares is
+preferred. The new land and landmark clues are what make that possible: with
+them, far more squares have two vague facts meeting on them. On average an
+animal's sharpest sentence leaves about 3 squares at level 5, 5 by level 9 and
+9 on the last levels.
+
+### Starting points
+
+The other thing that made later levels feel like a cliff was losing every
+starting point at once. A starting point is an animal the player can place
+straight from its own card, before anything else is known: the way in. A deal
+with none has no obvious first move.
+
+So a level says how many each deal has, and the generator builds to it
+exactly: the starting animals are chosen first, placed where their own facts
+meet, and given a card that pins them; every other card is kept from placing
+its own animal, so it has to be found through them. A level can give each deal
+its own number — the last level runs 1, 1, 0, 0 — so a level's last deal is its
+hardest and the next level starts where it ended.
+
+At depth this also decides how many facts an animal takes. A starting animal is
+two facts that meet. Any other one is at least its own fact plus the two that
+found what it leans on.
+
+### Measuring difficulty
+
+The editor stores, and shows, what each level actually asks — measured by the
+solver, not assumed from the settings:
+
+- **Vagueness** — per animal, how many squares its sharpest sentence leaves.
+- **Facts per animal** — the fewest sentences, from any card, that have to be
+  put together to pin it.
+- **Rounds** — how many waves of deduction a deal takes: finding the fish
+  before the bear, and the bear before the owl, is three.
+- **Starting points** — as above.
+- **"Not"** — the share of sentences that say it. Readability is the other
+  half of difficulty.
+
+The difficulty score puts these together per deal: its size, weighted up for
+every extra fact an animal needs, every extra round, every missing starting
+point and each step of leaning. The old score grew only with the board, so on
+paper the last levels were harder while in play the reasoning had stopped
+growing at level 9. The fifteen levels score 2, 2, 3, 5, 6, 6, 7, 11, 13, 19,
+21, 31, 33, 44 and 52 — no step more than about half again the one before — and
+the starter script refuses to jump further than that when it can help it.
 
 ## You never have to guess
 
@@ -255,6 +327,10 @@ Nothing is typed by hand. The sliders set:
   as above.
 - **Two of one colour** — how many deals bring two animals of one colour, two
   deals at a time.
+- **Starting points per deal** — how many animals each deal lets the player
+  place from their own card, exactly, or *any*. Only when clues lean on each
+  other. The funnel can set a list, one per deal, which the slider keeps until
+  it is moved.
 - **Landmarks** — up to 3 fixed things animals can mention. Any the level's
   clues don't mention are taken away, so a level may end up with fewer.
 - **Varied land sizes** — lands of clearly different sizes, so one can be *the
@@ -270,7 +346,9 @@ of a big board in two sentences, for instance, and the editor says so rather
 than handing back something wordier.
 
 The preview shows the answers and every card, deal by deal, with what each
-deal actually demands and what the level says most often. **Playtest** opens it in the game in a new tab.
+deal actually demands — its leaning, depth, starting points and rounds — and
+the level's measures (see *Measuring difficulty*) and what it says most often.
+**Playtest** opens it in the game in a new tab.
 **Lock in** puts it in the level list at the position chosen, and saves.
 
 Above the list is the funnel: one bar per level, as tall as its difficulty. A
@@ -407,9 +485,14 @@ along every step of the funnel, it:
 - tries every arrangement of the three animals and fails any deal with more
   than one answer;
 - checks every clue is true of the answer and is a kind the key explains, and
-  every land is whole and fairly sized.
+  every land is whole and fairly sized;
+- brute-forces depth: no sentence, or everything one card says about the same
+  thing, leaves an animal fewer squares than the level promises;
+- counts each deal's starting points — animals their own card places, with its
+  own solver again — against what the level promises.
 
-It exits non-zero on any failure. Run it after touching `generate.js`,
+It exits non-zero on any failure. `npm run depth` prints how often a single
+sentence places an animal, level by level. Run it after touching `generate.js`,
 `deduce.js`, `clues.js` or `zones.js`. `npm run audit:quick` is a shorter run
 that also prints a sample level, so you can read the clues as a player would.
 

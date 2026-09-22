@@ -21,6 +21,7 @@
 
 import {
   BINARY,
+  BOARD_FACTS,
   LANDMARK_KINDS,
   RANK,
   UNARY,
@@ -31,8 +32,9 @@ import {
   longestList,
   sentenceCount,
   sizeLead,
+  zoneRim,
 } from './clues.js';
-import { groupClues, isSolved, narrow, openness, sentenceReach } from './deduce.js';
+import { footholds, groupClues, isSolved, narrow, openness, sentenceReach } from './deduce.js';
 import { LANDMARKS, pickLands, readAnimal } from './habitats.js';
 import { evenSizes, makeZones, variedSizes } from './zones.js';
 import { manhattan, neighbours, range, shuffle } from './util.js';
@@ -70,7 +72,22 @@ export const DEFAULT_SPEC = {
   coords: false, // allow "I'm in row 3" -- plain, but it hands the answer over
   depth: 1, // fewest squares any one sentence may leave an animal -- see chooseClues
   pairs: 0, // swaps that give two deals each two animals of one colour -- see dealColours
+  footholds: null, // animals per deal their own card places, exactly -- a number, or one per deal; null for any -- see footholdsAt
 };
+
+/**
+ * How many starting points deal `round` should have, or null for any. A level
+ * can give one number for every deal, or a list, one per deal (the last
+ * repeating) -- so its last deal can be its hardest: [1, 1, 0, 0] is a level
+ * whose first two deals each offer one animal to start from and whose last
+ * two offer none. Standing alone, every animal is a starting point anyway.
+ */
+export function footholdsAt(spec, round) {
+  const f = spec.footholds;
+  if (spec.tier === 0 || f == null) return null;
+  if (Array.isArray(f)) return f.length ? f[Math.min(round, f.length - 1)] : null;
+  return f;
+}
 
 /**
  * Most swaps a level can take: each one needs two deals of its own.
@@ -97,8 +114,15 @@ const MIRROR = {
 
 const landmarkOf = (cl) => (cl.m != null && cl.m >= 0 ? cl.m : -1);
 
+const secondOf = (cl) => (cl.m2 != null && cl.m2 >= 0 ? `m${cl.m2}` : cl.b2 != null && cl.b2 >= 0 ? `a${cl.b2}` : '');
+
 const sameClue = (x, y) =>
-  x.k === y.k && x.a === y.a && x.b === y.b && x.n === y.n && landmarkOf(x) === landmarkOf(y);
+  x.k === y.k &&
+  x.a === y.a &&
+  x.b === y.b &&
+  x.n === y.n &&
+  landmarkOf(x) === landmarkOf(y) &&
+  secondOf(x) === secondOf(y);
 
 /** Would showing both of these just say one thing twice? */
 function echoes(x, y) {
@@ -248,6 +272,18 @@ function placeTrio(R, zones, group, tier, rng) {
 }
 
 /**
+ * A square of these, as close as the land allows to one of the given squares --
+ * right beside one if it can, since at the plainer rungs "I'm next to the fox"
+ * is the only way to lean on another animal at all.
+ */
+function besideAny(R, cells, near, rng) {
+  const dist = (i) => Math.min(...near.map((j) => manhattan(R, i, j)));
+  const closest = Math.min(...cells.map(dist));
+  const top = cells.filter((i) => dist(i) <= Math.max(closest, 1));
+  return top[(rng() * top.length) | 0];
+}
+
+/**
  * Where the animals go on a level meant to be read one fact at a time.
  *
  * The first levels ask each animal to be found from one short, positive fact
@@ -272,48 +308,56 @@ function placeTrio(R, zones, group, tier, rng) {
  * beside several of the animal's squares but only one the other fact allows.
  */
 function placeSimply(R, zones, zoneLand, zoneRound, group, round, rng, wants, plan, allow, depth = 1) {
+  // the board as clues see it, before any landmark is set down -- which is why
+  // only BOARD_FACTS are asked of it
   const quick = {
     R,
     zoneOf: zones.zoneOf,
+    zoneAdj: zones.zoneAdj,
     zoneLand,
     zoneSize: zones.zoneCells.map((cells) => cells.length),
+    zoneRim: zoneRim(R, zones),
+    landmarks: [],
   };
   const pos = new Int32Array(1);
   const truth = (fact, i) => {
     pos[0] = i;
     return holds(fact, quick, pos) === true;
   };
+  const colours = [...new Set(zoneLand)];
   return group.map((z) => {
     const h = zoneLand[z];
-    // every fact about a square alone that this level may say
-    const facts = [];
-    for (const k of UNARY) {
-      if (!allow.has(k)) continue;
-      if (['biggest', 'smallest', 'notBiggest'].includes(k) && !sizeFair(k, quick, z)) continue;
-      facts.push({ k, n: 0 });
-    }
-    for (let n = 0; n < 4; n++) {
-      if (allow.has('side')) facts.push({ k: 'side', n });
-      if (allow.has('notSide')) facts.push({ k: 'notSide', n });
-    }
-    for (let n = 0; n < LANDS_PER_DEAL; n++) {
-      if (n === h) continue;
-      if (allow.has('nearLand')) facts.push({ k: 'nearLand', n });
-      if (allow.has('notNearLand')) facts.push({ k: 'notNearLand', n });
-    }
-    for (const fact of facts) Object.assign(fact, { a: 0, b: -1 });
     const cands = [];
     for (let y = 0; y < zones.count; y++) {
       if (zoneLand[y] === h && zoneRound[y] >= round) cands.push(...zones.zoneCells[y]);
     }
+    // every fact about a square alone that this level may say
+    const facts = [];
+    for (const k of BOARD_FACTS) {
+      if (!allow.has(k)) continue;
+      if (['biggest', 'smallest', 'notBiggest'].includes(k) && !sizeFair(k, quick, z)) continue;
+      if (k === 'side' || k === 'notSide') for (let n = 0; n < 4; n++) facts.push({ k, n });
+      else if (k === 'nearLand' || k === 'notNearLand' || k === 'landBorders') {
+        for (const n of colours) if (n !== h) facts.push({ k, n });
+      } else if (k === 'landsAround') for (const n of [2, 3]) facts.push({ k, n });
+      else if (k === 'landSize') for (const n of new Set(cands.map((i) => quick.zoneSize[zones.zoneOf[i]]))) facts.push({ k, n });
+      else facts.push({ k, n: 0 });
+    }
+    for (const fact of facts) Object.assign(fact, { a: 0, b: -1 });
     // every square of this land that one fact picks out -- or, with depth, two
-    // broad ones together -- by the kinds of fact that do it
+    // broad ones together -- by the kinds of fact that do it, and how broad
+    // the sharper of the two is there
     const byKind = new Map();
-    const note = (kinds, i, partner = null) => {
+    const note = (kinds, i, partner = null, broad = 1) => {
       const key = kinds.join('|');
-      if (!byKind.has(key)) byKind.set(key, { kinds, cells: [], partner: new Map() });
-      byKind.get(key).cells.push(i);
-      if (partner) byKind.get(key).partner.set(i, partner);
+      if (!byKind.has(key)) byKind.set(key, { kinds, cells: [], partner: new Map(), broad: new Map() });
+      const way = byKind.get(key);
+      if (!way.broad.has(i)) way.cells.push(i);
+      if (broad >= (way.broad.get(i) ?? 0)) {
+        way.broad.set(i, broad);
+        if (partner) way.partner.set(i, partner);
+        else way.partner.delete(i);
+      }
     };
     if (depth <= 1) {
       for (const i of zones.zoneCells[z]) {
@@ -333,7 +377,7 @@ function placeSimply(R, zones, zoneLand, zoneRound, group, round, rng, wants, pl
             const [f, g] = [mine[x], mine[y]];
             if (sentenceCount([f.fact, g.fact]) !== 2) continue; // would fold into one sharp sentence
             if ([...f.where].some((j) => j !== i && g.where.has(j))) continue;
-            note([f.fact.k, g.fact.k].sort(), i);
+            note([f.fact.k, g.fact.k].sort(), i, null, Math.min(f.where.size, g.where.size));
           }
         }
       }
@@ -345,27 +389,34 @@ function placeSimply(R, zones, zoneLand, zoneRound, group, round, rng, wants, pl
         for (const i of zones.zoneCells[z]) {
           for (const f of broad) {
             if (!f.where.has(i)) continue;
-            const spot = neighbours(R, i).some((L) => {
+            let spot = 0;
+            for (const L of neighbours(R, i)) {
               const near = cands.filter((j) => manhattan(R, j, L) === 1);
-              return near.length >= floor && near.every((j) => j === i || !f.where.has(j));
-            });
-            if (spot) note(['touch', f.fact.k].sort(), i, { floor, where: f.where });
+              if (near.length >= floor && near.every((j) => j === i || !f.where.has(j))) spot = Math.max(spot, near.length);
+            }
+            if (spot) note(['touch', f.fact.k].sort(), i, { floor, where: f.where }, Math.min(spot, f.where.size));
           }
         }
       }
     }
+    // Which way: the kinds said least so far across the level, then the
+    // broadest -- a meet of two facts that each leave four squares is worth a
+    // repeated kind, and the whole point of depth.
     const used = (k) => plan.usage.get(k) || 0;
     const ways = [...byKind.values()];
     if (depth <= 1 && plan.landmarksLeft > 0 && allow.has('touch')) ways.push({ kinds: ['touch'], cells: null });
-    const cost = (way) => way.kinds.reduce((s, k) => s + used(k), 0);
+    const broadest = (way) => (way.cells ? Math.max(...way.cells.map((i) => way.broad.get(i))) : 1);
+    const cost = (way) => way.kinds.reduce((s, k) => s + used(k), 0) - (depth > 1 ? 1.5 * Math.log2(broadest(way)) : 0);
     const least = Math.min(...ways.map(cost));
-    const fresh = ways.filter((way) => cost(way) === least);
+    const fresh = ways.filter((way) => cost(way) <= least + 1e-9);
     const way = fresh.length ? fresh[(rng() * fresh.length) | 0] : null;
     for (const k of way?.kinds ?? []) plan.usage.set(k, used(k) + 1);
     const kind = way?.cells ? 'board' : way ? 'touch' : null;
 
     if (kind === 'board') {
-      const cell = way.cells[(rng() * way.cells.length) | 0];
+      const top = broadest(way);
+      const best = way.cells.filter((i) => way.broad.get(i) === top);
+      const cell = best[(rng() * best.length) | 0];
       const partner = way.partner.get(cell);
       if (partner) {
         plan.landmarksLeft--;
@@ -487,7 +538,10 @@ function buildPool(ctx, subs, earlier, kinds, solution) {
       if (h === ctx.animals[a].land) continue;
       push({ k: 'nearLand', a, b: -1, n: h });
       push({ k: 'notNearLand', a, b: -1, n: h });
+      push({ k: 'landBorders', a, b: -1, n: h });
     }
+    for (const n of [2, 3]) push({ k: 'landsAround', a, b: -1, n });
+    push({ k: 'landSize', a, b: -1, n: ctx.zoneSize[zone] });
     push({ k: 'inRow', a, b: -1, n: ctx.R.row(solution[a]) });
     push({ k: 'inColumn', a, b: -1, n: ctx.R.col(solution[a]) });
 
@@ -497,6 +551,7 @@ function buildPool(ctx, subs, earlier, kinds, solution) {
       for (const k of LANDMARK_KINDS) {
         if (k !== 'steps') push({ k, a, b: -1, n: 0, m });
       }
+      push({ k: 'markInLand', a, b: -1, n: 0, m });
       const d = manhattan(ctx.R, solution[a], mark.cell);
       if (d >= 2 && d <= 5) push({ k: 'steps', a, b: -1, n: d, m });
     });
@@ -513,6 +568,22 @@ function buildPool(ctx, subs, earlier, kinds, solution) {
       for (const k of BINARY) push({ k, a, b, n: 0 });
       const d = manhattan(ctx.R, solution[a], solution[b]);
       if (d >= 2 && d <= 5) push({ k: 'steps', a, b, n: d });
+    }
+
+    // Facts that name two things. The second is always fixed -- a landmark or
+    // an animal already placed -- so the fact still ties this animal to at most
+    // one animal of its own deal, which is all the solver reads together.
+    const fixed = [...ctx.landmarks.map((_, m) => ({ m })), ...near.map((b) => ({ b }))];
+    const first = [...fixed, ...subs.filter((b) => b !== a).map((b) => ({ b }))];
+    for (const one of first) {
+      for (const two of fixed) {
+        if (one === two) continue;
+        const ref = { a, b: one.b ?? -1, n: 0, ...(one.m != null ? { m: one.m } : {}) };
+        const second = two.m != null ? { m2: two.m } : { b2: two.b };
+        push({ k: 'closer', ...ref, ...second });
+        // "next to this or that" reads the same both ways round, so only one order
+        if (!(fixed.includes(one) && fixed.indexOf(one) > fixed.indexOf(two))) push({ k: 'eitherTouch', ...ref, ...second });
+      }
     }
   }
   return pool;
@@ -543,7 +614,7 @@ function buildPool(ctx, subs, earlier, kinds, solution) {
  * sentence here, the way the solver reads it: "I'm next to the tent. I'm right
  * of the tent." is one square said in two halves, not two facts that meet.
  */
-function chooseClues(cand, pool, ctx, work, subs, spec, spent, rng) {
+function chooseClues(cand, pool, ctx, work, subs, spec, spent, rng, want = null, planned = null) {
   const { tier, perCard } = spec;
   // At the two easiest rungs a card is limited in facts, not sentences, and no
   // two facts may fold into one compound sentence: "I'm on the board's edge,
@@ -557,26 +628,55 @@ function chooseClues(cand, pool, ctx, work, subs, spec, spent, rng) {
   const depth = spec.depth ?? 1;
   const floor = cand.map((cells) => Math.min(depth, Math.max(1, cells.length - 1)));
   const index = new Map(pool.map((cl, i) => [cl, i]));
-  const sharp = new Map();
-  const tooSharp = (sentence) => {
+  const reaches = new Map();
+  const reachOf = (sentence) => {
     const key = sentence.map((cl) => index.get(cl)).sort((x, y) => x - y).join(',');
-    if (!sharp.has(key)) {
-      const reach = sentenceReach(sentence, cand, ctx, work, subs);
-      sharp.set(key, reach.some((n, k) => n < floor[k]));
-    }
-    return sharp.get(key);
+    if (!reaches.has(key)) reaches.set(key, sentenceReach(sentence, cand, ctx, work, subs));
+    return reaches.get(key);
+  };
+  const tooSharp = (sentence) => reachOf(sentence).some((n, k) => n < floor[k]);
+  // How many squares a fact leaves the animals it narrows, read alone -- a fact
+  // that narrows nothing alone (it needs another animal placed first) counts
+  // as leaving all of them.
+  const broadness = (cl) => {
+    let least = Math.max(...cand.map((cells) => cells.length));
+    reachOf([cl]).forEach((n, k) => {
+      if (n < cand[k].length) least = Math.min(least, n);
+    });
+    return least;
   };
   // every idea a card holds -- folding can join two fine facts into one sharp sentence
   const deep = depth > 1 ? (card) => ideas(card).every((s) => !tooSharp(s)) : () => true;
   // a fact too sharp on its own is only sharper folded into a sentence with another
   if (depth > 1) pool = pool.filter((cl) => !tooSharp([cl]));
 
+  // Starting points. With animals leaning on each other, a deal can say exactly
+  // how many of them the player may find straight from their own card -- the
+  // anchors, chosen first and card by card -- and every other card is kept
+  // from placing its own animal alone, so it has to be found through another.
+  // At depth that is also what decides how many facts each takes: an anchor
+  // is two facts that meet, anything else is at least its own fact plus the
+  // two that found what it leans on.
+  const target = tier > 0 && want != null ? Math.min(want, subs.length) : null;
+  const anchors =
+    target == null
+      ? []
+      : planned
+        ? planned.map((a) => subs.indexOf(a))
+        : shuffle(range(subs.length), rng).slice(0, target);
+  const anchored = new Set(anchors.map((m) => subs[m]));
+  const pinsAlone = (card, a) => {
+    const m = subs.indexOf(a);
+    return narrow(cand, groupClues(card, subs), ctx, work, subs, 0)[m].length === 1;
+  };
+
   const cardFits = (cl, shown) => {
     const card = [...shown.filter((c) => c.a === cl.a), cl];
     const fits = oneByOne
       ? card.length <= perCard && sentenceCount(card) === card.length
       : sentenceCount(card) <= perCard && longestList(card) <= 2;
-    return fits && deep(card);
+    if (!fits || !deep(card)) return false;
+    return target == null || anchored.has(cl.a) || !pinsAlone(card, cl.a);
   };
   const leans = (cl) => cl.b >= 0 && subs.includes(cl.b);
   const usedAlready = (cl, shown) =>
@@ -596,9 +696,9 @@ function chooseClues(cand, pool, ctx, work, subs, spec, spent, rng) {
   // every pair that together leaves the animal one square is weighed, by how
   // plain its facts are and how often the deal and level have said those kinds
   // already, and the lightest is kept.
-  const cardByCard = () => {
+  const cardByCard = (which) => {
     const out = [];
-    for (const m of shuffle(range(subs.length), rng)) {
+    for (const m of shuffle([...which], rng)) {
       const a = subs[m];
       const where = new Map();
       for (const cl of pool) {
@@ -617,7 +717,10 @@ function chooseClues(cand, pool, ctx, work, subs, spec, spent, rng) {
           if (!cardFits(cl, card)) return;
           card.push(cl);
         }
-        const cost = set.reduce((s, cl) => s + weight(cl, out), 0) + rng() * 0.3;
+        // plain and fresh first, then broad: the sharper fact of the set
+        // leaving more squares is worth about as much as a repeated kind
+        const broad = Math.min(...set.map((cl) => where.get(cl).size));
+        const cost = set.reduce((s, cl) => s + weight(cl, out), 0) - 1.2 * Math.log2(broad) + rng() * 0.3;
         if (cost < bestCost) {
           bestCost = cost;
           best = set;
@@ -640,11 +743,11 @@ function chooseClues(cand, pool, ctx, work, subs, spec, spent, rng) {
     return out;
   };
 
-  let open = cand;
   const standalone = tier === 0 && depth > 1;
-  const chosen = standalone ? cardByCard() : [];
+  const chosen = standalone ? cardByCard(range(subs.length)) : cardByCard(anchors);
   if (!chosen) return null;
-  if (standalone && !isSolved(narrow(cand, groupClues(chosen, subs), ctx, work, subs, tier))) return null;
+  let open = narrow(cand, groupClues(chosen, subs), ctx, work, subs, tier);
+  if (standalone && !isSolved(open)) return null;
 
   while (!standalone && !isSolved(open)) {
     const total = openness(open);
@@ -666,7 +769,9 @@ function chooseClues(cand, pool, ctx, work, subs, spec, spent, rng) {
       const inDeal = chosen.filter((c) => c.k === cl.k && c.a !== cl.a).length;
       const repeat = folds ? 0.85 : 1 + 1.5 * inDeal + 0.6 * (spent.get(cl.k) || 0);
       const lean = leans(cl) ? 1.5 : 0;
-      const score = n * (1 + 0.12 * ((RANK[cl.k] ?? 6) + lean)) * repeat;
+      // with depth, a broad fact is worth a little more progress than a sharp one
+      const broad = depth > 1 ? Math.pow(broadness(cl), -0.6) : 1;
+      const score = n * (1 + 0.12 * ((RANK[cl.k] ?? 6) + lean)) * repeat * broad;
       if (score < bestScore) {
         bestScore = score;
         best = cl;
@@ -686,6 +791,8 @@ function chooseClues(cand, pool, ctx, work, subs, spec, spent, rng) {
     const trial = kept.filter((c) => c !== cl);
     // taking a fact off a card can refold what is left into a sharper sentence
     if (!deep(trial.filter((c) => c.a === cl.a))) continue;
+    // nor may it take away a starting point the deal is meant to have
+    if (target != null && anchored.has(cl.a) && !pinsAlone(trial.filter((c) => c.a === cl.a), cl.a)) continue;
     if (isSolved(narrow(cand, groupClues(trial, subs), ctx, work, subs, tier))) kept = trial;
   }
 
@@ -753,16 +860,34 @@ function attempt(R, rng, spec) {
   const allowed = new Set(kindsFor(spec.vocab, spec.coords));
   const wants = []; // animals a landmark should pick out
   const plan = { usage: new Map(), landmarksLeft: spec.landmarks ?? 0 };
+  // With animals leaning on each other and a set number of starting points,
+  // the starting animals are placed the way standing-alone ones are -- where
+  // their own facts can meet -- and the rest beside them, where facts about
+  // each other have something to say.
+  const anchorIds = new Set();
   groups.forEach((group, r) => {
-    const seats = planned
-      ? placeSimply(R, zones, zoneLand, zoneRound, group, r, rng, wants, plan, allowed, spec.perCard === 1 ? 1 : depth)
-      : placeTrio(R, zones, group, spec.tier, rng);
+    let seats;
+    let anchorsHere = [];
+    const anchorCount = Math.min(footholdsAt(spec, r) ?? 0, group.length);
+    if (planned) {
+      seats = placeSimply(R, zones, zoneLand, zoneRound, group, r, rng, wants, plan, allowed, spec.perCard === 1 ? 1 : depth);
+    } else if (anchorCount > 0) {
+      const order = shuffle(range(group.length), rng);
+      anchorsHere = order.slice(0, anchorCount);
+      const fixed = placeSimply(R, zones, zoneLand, zoneRound, anchorsHere.map((k) => group[k]), r, rng, wants, plan, allowed, depth);
+      seats = [];
+      anchorsHere.forEach((k, j) => (seats[k] = fixed[j]));
+      for (const k of order.slice(anchorCount)) seats[k] = besideAny(R, zones.zoneCells[group[k]], fixed, rng);
+    } else {
+      seats = placeTrio(R, zones, group, spec.tier, rng);
+    }
     group.forEach((z, k) => {
       const h = zoneLand[z];
       const { icon, name } = readAnimal(cast[h][castNext[h]++]);
       const id = animals.length;
       animals.push({ id, icon, name, land: h, landName: lands[h].name, zone: z, round: r, cell: seats[k] });
       byRound[r].push(id);
+      if (anchorsHere.includes(k)) anchorIds.add(id);
     });
   });
 
@@ -790,15 +915,49 @@ function attempt(R, rng, spec) {
     const cand = candidatesAt(r, subs, blocked);
     const earlier = animals.filter((a) => a.round < r).map((a) => a.id);
     const pool = buildPool(ctx, subs, earlier, kinds, solution);
-    const chosen = chooseClues(cand, pool, ctx, Int32Array.from(solution), subs, spec, spent, rng);
+    const want = footholdsAt(spec, r);
+    const anchors = want != null ? subs.filter((a) => anchorIds.has(a)) : null;
+    const chosen = chooseClues(cand, pool, ctx, Int32Array.from(solution), subs, spec, spent, rng, want, anchors);
     if (!chosen) return null;
     deals.push({ round: r, animals: subs, clues: chosen.clues, spare: chosen.spare });
   }
 
   const kept = dropUnmentioned(landmarks, deals, ctx, spec.tier, solution, candidatesAt);
   if (!kept) return null;
+  if (!shapeFits(spec, deals, ctx, solution, candidatesAt, kept)) return null;
 
   return { R, spec, zones, lands, zoneLand, zoneRound, animals, landmarks: kept, deals, ctx, rounds };
+}
+
+/**
+ * Starting points and depth, checked again on the finished deals. chooseClues
+ * builds each deal to both, but pruning the landmarks afterwards reopens
+ * squares. A reopened square can take an anchor's card from one square to
+ * two; and for an animal with only a few squares, one more can raise what
+ * depth asks of it (all but one of its squares, up to the level's depth)
+ * above what a sentence leaves. A deal with nowhere to start is where players
+ * said the difficulty jumped, and depth is a promise the audit checks, so
+ * neither is left to chance.
+ */
+function shapeFits(spec, deals, ctx, solution, candidatesAt, landmarks) {
+  const blocked = new Set(landmarks.map((l) => l.cell));
+  const depth = spec.depth ?? 1;
+  return deals.every((d) => {
+    const cand = candidatesAt(d.round, d.animals, blocked);
+    const work = Int32Array.from(solution);
+    if (depth > 1) {
+      const floor = cand.map((cells) => Math.min(depth, Math.max(1, cells.length - 1)));
+      for (const a of d.animals) {
+        for (const idea of ideas(d.clues.filter((cl) => cl.a === a))) {
+          if (sentenceReach(idea, cand, ctx, work, d.animals).some((n, k) => n < floor[k])) return false;
+        }
+      }
+    }
+    const at = footholdsAt(spec, d.round);
+    if (at == null) return true;
+    const want = Math.min(at, d.animals.length);
+    return footholds(cand, d.clues, ctx, work, d.animals) === want;
+  });
 }
 
 /**
@@ -818,7 +977,13 @@ function attempt(R, rng, spec) {
  */
 function dropUnmentioned(landmarks, deals, ctx, tier, solution, candidatesAt) {
   const named = (cl) => cl.m != null && cl.m >= 0;
-  const mentioned = new Set(deals.flatMap((d) => d.clues.filter(named).map((cl) => cl.m)));
+  const namedSecond = (cl) => cl.m2 != null && cl.m2 >= 0;
+  const mentioned = new Set(
+    deals.flatMap((d) => [
+      ...d.clues.filter(named).map((cl) => cl.m),
+      ...d.clues.filter(namedSecond).map((cl) => cl.m2),
+    ])
+  );
   if (mentioned.size === landmarks.length) return landmarks;
 
   const keep = landmarks.map((_, m) => m).filter((m) => mentioned.has(m));
@@ -826,7 +991,12 @@ function dropUnmentioned(landmarks, deals, ctx, tier, solution, candidatesAt) {
   const kept = keep.map((m) => landmarks[m]);
   const open = new Set(kept.map((l) => l.cell));
   ctx.landmarks = kept;
-  for (const d of deals) for (const cl of d.clues) if (named(cl)) cl.m = renumber.get(cl.m);
+  for (const d of deals) {
+    for (const cl of d.clues) {
+      if (named(cl)) cl.m = renumber.get(cl.m);
+      if (namedSecond(cl)) cl.m2 = renumber.get(cl.m2);
+    }
+  }
 
   for (const d of deals) {
     const cand = candidatesAt(d.round, d.animals, open);

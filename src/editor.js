@@ -30,7 +30,7 @@ for (const id of [
   'slot', 'suggest', 'N', 'NOut', 'lands', 'landsOut', 'tier', 'tierOut', 'tierHint',
   'vocab', 'vocabOut', 'vocabHint', 'perCard', 'perCardOut', 'spare', 'spareOut', 'coords',
   'landmarks', 'landmarksOut', 'varied', 'perCardLabel', 'depth', 'depthOut', 'depthHint',
-  'pairs', 'pairsOut',
+  'pairs', 'pairsOut', 'footholds', 'footholdsOut',
   'generate', 'playtest', 'lock', 'genStatus', 'previewTitle', 'answers', 'stage', 'stats',
   'deals', 'count', 'funnel', 'book', 'saveStatus', 'download',
 ]) {
@@ -48,12 +48,17 @@ const SAID = {
   left: 'half of the board', right: 'half of the board', zoneEdge: 'next to another land',
   zoneCore: 'surrounded', nearLand: 'next to a colour', notNearLand: 'not next to a colour',
   biggest: 'biggest', smallest: 'smallest', notBiggest: 'not biggest', inRow: 'row', inColumn: 'column',
+  middle: 'middle of the board', diagonal: 'board diagonal', landRim: 'land touches the edge',
+  landInland: 'land inland', noMarkInLand: 'no landmark in land', landsAround: 'next to other lands',
+  landBorders: 'land borders a colour', landSize: 'land size', markInLand: 'landmark in land',
+  closer: 'closer than', eitherTouch: 'next to this or that',
 };
 
 const view = new View(ui.stage);
 view.crossOut = false; // answers are shown all at once; crossing out would bury them
 
 let book = emptyBook();
+let footholdPlan = null; // starting points per deal, when the funnel gives a list
 let candidate = null; // generated, not yet locked in
 let showing = null; // { level, at } -- at is 'candidate' or a position in the book
 let job = 0;
@@ -78,6 +83,7 @@ function readSpec() {
     coords: ui.coords.checked,
     depth: Number(ui.depth.value),
     pairs: Math.min(Number(ui.pairs.value), maxPairs(landChoices()[Number(ui.lands.value)])),
+    footholds: footholdPlan ?? (Number(ui.footholds.value) < 0 ? null : Number(ui.footholds.value)),
   };
 }
 
@@ -93,6 +99,9 @@ function writeSliders(spec) {
   ui.coords.checked = !!spec.coords;
   ui.depth.value = String(spec.depth ?? 1);
   ui.pairs.value = String(spec.pairs ?? 0);
+  // a per-deal list from the funnel is kept as it is until the slider moves
+  footholdPlan = Array.isArray(spec.footholds) ? [...spec.footholds] : null;
+  ui.footholds.value = String(footholdPlan ? footholdPlan[footholdPlan.length - 1] : (spec.footholds ?? -1));
   syncLabels();
 }
 
@@ -132,11 +141,24 @@ function syncLabels() {
   ui.pairs.max = String(most);
   ui.pairs.disabled = most === 0;
   ui.pairsOut.textContent = spec.pairs ? `${spec.pairs * 2} of ${spec.lands / 3} deals` : 'none';
+  ui.footholds.disabled = spec.tier === 0;
+  ui.footholdsOut.textContent =
+    spec.tier === 0
+      ? 'all (alone)'
+      : Array.isArray(spec.footholds)
+        ? `${spec.footholds.join(', ')} by deal`
+        : spec.footholds == null
+          ? 'any'
+          : `${spec.footholds} of 3`;
 }
 
-for (const el of [ui.lands, ui.tier, ui.vocab, ui.perCard, ui.spare, ui.landmarks, ui.varied, ui.coords, ui.depth, ui.pairs]) {
+for (const el of [ui.lands, ui.tier, ui.vocab, ui.perCard, ui.spare, ui.landmarks, ui.varied, ui.coords, ui.depth, ui.pairs, ui.footholds]) {
   el.addEventListener('input', syncLabels);
 }
+ui.footholds.addEventListener('input', () => {
+  footholdPlan = null;
+  syncLabels();
+});
 ui.N.addEventListener('input', () => {
   // keep roughly the same land size as the board grows or shrinks
   const before = readSpec();
@@ -209,6 +231,7 @@ function advice(spec) {
     tips.push('two facts per card (standing alone, depth needs two facts to meet)');
   }
   if (spec.depth > 2) tips.push('less depth');
+  if (spec.tier > 0 && spec.footholds != null) tips.push('a different number of starting points, or “any”');
   if (spec.vocab <= 1 && spec.N >= 7) {
     tips.push('a harder-to-read rung (simple clues can’t pin the middle of a big board)');
   }
@@ -244,6 +267,11 @@ function show(level, at) {
     ['Words', VOCABULARY[level.spec.vocab].name],
     ['Sentences', s.sentences],
     ['Depth', s.reach ?? '–'],
+    ['Vagueness', s.broad ?? '–'],
+    ['Facts per animal', s.facts != null ? `${s.facts} (up to ${s.factsMost > 4 ? '5+' : s.factsMost})` : '–'],
+    ['Rounds', s.rounds ?? '–'],
+    ['Starting points', s.footholds ?? '–'],
+    ['“Not”', s.nots != null ? `${s.nots}%` : '–'],
     ['Two of a colour', s.pairDeals ?? 0],
     ['Spare', spare],
     ['Landmarks', s.landmarks],
@@ -269,7 +297,7 @@ function show(level, at) {
       card.className = 'deal-card';
       const h = document.createElement('h3');
       const d = s.deals[r];
-      h.textContent = `Deal ${r + 1} · ${TIERS[d.tier]?.name ?? '?'} · ${d.sentences} sentences · depth ${d.reach ?? '?'}${d.pair ? (d.pairUsed ? ' · two of a colour, needed' : ' · two of a colour, not needed') : ''}`;
+      h.textContent = `Deal ${r + 1} · ${TIERS[d.tier]?.name ?? '?'} · ${d.sentences} sentences · depth ${d.reach ?? '?'} · ${d.footholds ?? '?'} to start from · ${d.rounds ?? '?'} rounds${d.pair ? (d.pairUsed ? ' · two of a colour, needed' : ' · two of a colour, not needed') : ''}`;
       const ul = document.createElement('ul');
       for (const id of deal.animals) {
         const a = puzzle.animals[id];

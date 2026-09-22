@@ -13,7 +13,7 @@
 import { LANDS } from './habitats.js';
 import { describeZones } from './zones.js';
 import { COORDS, boardContext, chunks, ideas, sentenceCount } from './clues.js';
-import { TIERS, groupClues, isSolved, narrow, sentenceReach, tierNeeded } from './deduce.js';
+import { TIERS, factsNeeded, footholds, groupClues, isSolved, narrow, rounds, sentenceReach, tierNeeded } from './deduce.js';
 import { makeRules } from './util.js';
 
 export const LEVEL_FILE = 'levels/levels.json';
@@ -72,18 +72,28 @@ function repetition(puzzle) {
  * much the animals lean on each other (see deduce.js), measured -- the lowest
  * tier that actually solves the deal, which can be lower than the spec allowed.
  *
- * `difficulty` puts the two together: bits, weighted up by half again for each
- * tier of leaning, summed over the deals, less a little for every spare clue
- * (which is help, not work), and scaled so a first tutorial board lands around
- * 2 and a hard 9 x 9 in the thirties. It is a guide for ordering
- * levels, not a law -- the editor shows it so the funnel can be checked at a
- * glance, and a person decides the order.
- *
  * `reach` is the depth a deal actually has: the fewest squares any one idea on
  * a card leaves an animal it talks about, read alone (1 means some sentence
- * names a square outright). `pair` marks a deal with two animals of a colour,
+ * names a square outright). `broad` is the same per animal, averaged: how
+ * vague its sharpest idea is. `pair` marks a deal with two animals of a colour,
  * and `pairUsed` one that could not be solved at its tier without the rule that
  * they need two different lands.
+ *
+ * `facts`, `rounds` and `footholds` are the measures in deduce.js: per animal,
+ * how many ideas have to be put together to pin it; how many waves of
+ * deduction the deal takes; how many animals their own card places. `nots` is
+ * how many sentences say "not".
+ *
+ * `difficulty` puts them together, per deal: bits, weighted up for every extra
+ * fact an animal needs on average, every extra round, the share of animals
+ * with no card of their own to start from, and each tier of leaning -- pinning
+ * animals together before any is placed is harder than the rounds alone
+ * show; summed over the deals, less
+ * a little for every spare clue (help, not work). A first tutorial board lands
+ * around 2 and the last 9 x 9 around 50. The old score grew only with the board;
+ * this one grows with what players said makes a level hard. It is a guide for
+ * ordering levels, not a law -- the editor shows it so the funnel can be
+ * checked at a glance, and a person decides the order.
  */
 export function measure(puzzle) {
   const solution = Int32Array.from(puzzle.animals, (a) => a.cell);
@@ -96,21 +106,22 @@ export function measure(puzzle) {
       (n, id) => n + sentenceCount(deal.clues.filter((cl) => cl.a === id)),
       0
     );
+    const all = deal.animals.flatMap((id) => ideas(deal.clues.filter((cl) => cl.a === id)));
     let reach = Infinity;
-    for (const id of deal.animals) {
-      for (const idea of ideas(deal.clues.filter((cl) => cl.a === id))) {
-        const left = sentenceReach(idea, cand, puzzle.ctx, pos, deal.animals);
-        left.forEach((n, k) => {
-          if (n < cand[k].length) reach = Math.min(reach, n); // only animals it narrows
-        });
-      }
+    const sharpest = cand.map((cells) => cells.length);
+    for (const idea of all) {
+      sentenceReach(idea, cand, puzzle.ctx, pos, deal.animals).forEach((n, k) => {
+        if (n < cand[k].length) reach = Math.min(reach, n); // only animals it narrows
+        sharpest[k] = Math.min(sharpest[k], n);
+      });
     }
     const colours = deal.animals.map((id) => puzzle.animals[id].land);
     const pair = new Set(colours).size < colours.length;
     // does the pair matter -- would the deal stall if a land could take both?
     const groups = groupClues(deal.clues, deal.animals);
-    const pairUsed =
-      pair && !isSolved(narrow(cand, groups, puzzle.ctx, pos, deal.animals, puzzle.spec?.tier ?? 2, false));
+    const level = puzzle.spec?.tier ?? 2;
+    const pairUsed = pair && !isSolved(narrow(cand, groups, puzzle.ctx, pos, deal.animals, level, false));
+    const texts = deal.animals.flatMap((id) => chunks(deal.clues.filter((cl) => cl.a === id), puzzle.ctx));
     return {
       bits: Math.round(bits * 10) / 10,
       tier,
@@ -119,11 +130,27 @@ export function measure(puzzle) {
       spare: deal.spare ?? 0,
       coords: deal.clues.some((cl) => COORDS.includes(cl.k)),
       reach: Number.isFinite(reach) ? reach : null,
+      broad: Math.round((10 * sharpest.reduce((s, n) => s + n, 0)) / sharpest.length) / 10,
       pair,
       pairUsed,
+      facts: factsNeeded(cand, all, puzzle.ctx, pos, deal.animals, level, 4),
+      rounds: rounds(cand, deal.clues, puzzle.ctx, pos, deal.animals, level),
+      footholds: footholds(cand, deal.clues, puzzle.ctx, pos, deal.animals),
+      animals: deal.animals.length,
+      words: texts.reduce((n, t) => n + t.text.split(' ').length, 0),
+      nots: texts.filter((t) => /\bnot\b|n't\b/.test(t.text)).length,
     };
   });
-  const weight = deals.reduce((s, d) => s + d.bits * (1 + 0.5 * Math.max(0, d.tier)) - 4 * d.spare, 0);
+  const mean = (xs) => xs.reduce((s, x) => s + x, 0) / Math.max(1, xs.length);
+  const weight = deals.reduce((s, d) => {
+    const extraFacts = Math.max(0, mean(d.facts) - 1);
+    const extraRounds = Math.max(0, (Number.isFinite(d.rounds) ? d.rounds : 6) - 1);
+    const noStart = 1 - d.footholds / d.animals;
+    const leaning = 1 + 0.2 * Math.max(0, d.tier);
+    return s + (d.bits / 4) * (1 + 0.35 * extraFacts) * (1 + 0.25 * extraRounds) * (1 + 0.5 * noStart) * leaning - d.spare;
+  }, 0);
+  const facts = deals.flatMap((d) => d.facts);
+  const animals = deals.reduce((s, d) => s + d.animals, 0);
   return {
     deals,
     repeats: repetition(puzzle),
@@ -133,9 +160,16 @@ export function measure(puzzle) {
     sentences: deals.reduce((s, d) => s + d.sentences, 0),
     coords: deals.some((d) => d.coords),
     reach: deals.some((d) => d.reach != null) ? Math.min(...deals.map((d) => d.reach ?? Infinity)) : null,
+    broad: Math.round(10 * mean(deals.map((d) => d.broad))) / 10,
     pairDeals: deals.filter((d) => d.pair).length,
     pairsUsed: deals.filter((d) => d.pairUsed).length,
-    difficulty: Math.round(weight / 3),
+    facts: Math.round(10 * mean(facts)) / 10,
+    factsMost: Math.max(...facts),
+    rounds: Math.max(...deals.map((d) => d.rounds)),
+    footholds: Math.min(...deals.map((d) => d.footholds)),
+    words: Math.round((10 * deals.reduce((s, d) => s + d.words, 0)) / animals) / 10,
+    nots: Math.round((100 * deals.reduce((s, d) => s + d.nots, 0)) / Math.max(1, deals.reduce((s, d) => s + d.sentences, 0))),
+    difficulty: Math.round(weight),
   };
 }
 
@@ -161,7 +195,16 @@ export function serializeLevel(puzzle, meta = {}) {
     deals: puzzle.deals.map((d) => ({
       animals: [...d.animals],
       spare: d.spare ?? 0,
-      clues: d.clues.map(({ k, a, b, n, m }) => (m != null && m >= 0 ? { k, a, b, n, m } : { k, a, b, n })),
+      // only the fields a clue uses: most name one thing or nothing
+      clues: d.clues.map(({ k, a, b, n, m, m2, b2 }) => ({
+        k,
+        a,
+        b,
+        n,
+        ...(m != null && m >= 0 ? { m } : {}),
+        ...(m2 != null && m2 >= 0 ? { m2 } : {}),
+        ...(b2 != null && b2 >= 0 ? { b2 } : {}),
+      })),
     })),
     stats: measure(puzzle),
   };
