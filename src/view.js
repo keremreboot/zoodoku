@@ -62,17 +62,6 @@ function paperTile(color, amount = 18) {
   return cv;
 }
 
-/** A rounded square path -- by hand, since ctx.roundRect is too new for older phones. */
-function roundedSquare(ctx, x, y, side, r) {
-  ctx.beginPath();
-  ctx.moveTo(x + r, y);
-  ctx.arcTo(x + side, y, x + side, y + side, r);
-  ctx.arcTo(x + side, y + side, x, y + side, r);
-  ctx.arcTo(x, y + side, x, y, r);
-  ctx.arcTo(x, y, x + side, y, r);
-  ctx.closePath();
-}
-
 export class View {
   constructor(canvas) {
     this.canvas = canvas;
@@ -479,31 +468,31 @@ export class View {
   }
 
   /**
-   * Landmarks sit on a small square plaque, where animals sit in circles, so a
-   * glance tells the two apart: one is scenery, the other is the puzzle.
+   * Animals sit on white discs; landmarks stand bare on the land, with only a
+   * faint shadow at their foot, so a glance tells the two apart: one is
+   * scenery, the other is the puzzle. They used to sit on a white square
+   * plaque, and a white backing of any shape read as one more animal.
    */
   drawLandmarks(ctx) {
     const S = this.S;
     for (const [m, mark] of this.game.landmarks.entries()) {
       const x = this.px(this.R.col(mark.cell));
       const y = this.py(this.R.row(mark.cell));
-      const inset = S * 0.12;
-      const side = S - inset * 2;
+      const inset = S * 0.024;
       ctx.save();
       if (this.spotlightMarks.has(m)) {
         ctx.fillStyle = PALETTE.ink;
         ctx.globalAlpha = 0.16;
-        ctx.fillRect(x + inset * 0.2, y + inset * 0.2, S - inset * 0.4, S - inset * 0.4);
-        ctx.globalAlpha = 1;
+        ctx.fillRect(x + inset, y + inset, S - inset * 2, S - inset * 2);
       }
-      ctx.fillStyle = PALETTE.paper;
-      ctx.strokeStyle = PALETTE.muted;
-      ctx.lineWidth = Math.max(1, S * 0.025);
-      roundedSquare(ctx, x + inset, y + inset, side, S * 0.12);
+      ctx.fillStyle = PALETTE.ink;
+      ctx.globalAlpha = 0.14;
+      ctx.beginPath();
+      ctx.ellipse(x + S / 2, y + S * 0.8, S * 0.26, S * 0.07, 0, 0, Math.PI * 2);
       ctx.fill();
-      ctx.stroke();
-      const size = side * 0.82;
-      ctx.drawImage(iconSprite(mark.icon), x + (S - size) / 2, y + (S - size) / 2, size, size);
+      ctx.globalAlpha = 1;
+      const size = S * 0.78;
+      ctx.drawImage(iconSprite(mark.icon), x + (S - size) / 2, y + (S - size) / 2 - S * 0.04, size, size);
       ctx.restore();
     }
   }
