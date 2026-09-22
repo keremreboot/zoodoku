@@ -1,0 +1,29 @@
+{
+  "id": "86lvw5nvq3",
+  "name": "",
+  "seed": 20262929,
+  "spec": {"N":6,"lands":4,"tier":1,"vocab":0,"spare":0,"perCard":2,"landmarks":2,"varied":true,"coords":false,"dealSize":2,"depth":2,"pairs":0,"footholds":1},
+  "N": 6,
+  "zoneOf": [
+    0, 0, 0, 0, 0, 0,
+    1, 1, 0, 3, 0, 0,
+    1, 1, 0, 3, 3, 3,
+    1, 1, 1, 2, 3, 3,
+    1, 1, 1, 2, 2, 2,
+    1, 1, 2, 2, 2, 2
+  ],
+  "lands": ["Meadow","Desert","Ocean"],
+  "zoneLand": [1,0,2,1],
+  "animals": [
+    {"icon":"🐖","name":"pig","land":0,"cell":6,"round":0},
+    {"icon":"🦩","name":"flamingo","land":1,"cell":0,"round":0},
+    {"icon":"🐫","name":"camel","land":1,"cell":15,"round":1},
+    {"icon":"🐋","name":"whale","land":2,"cell":21,"round":1}
+  ],
+  "landmarks": [],
+  "deals": [
+    {"animals":[0,1],"spare":0,"clues":[{"k":"zoneEdge","a":0,"b":-1,"n":0},{"k":"side","a":0,"b":-1,"n":3},{"k":"touch","a":1,"b":0,"n":0}]},
+    {"animals":[2,3],"spare":0,"clues":[{"k":"top","a":2,"b":-1,"n":0},{"k":"nearLand","a":2,"b":-1,"n":2},{"k":"touch","a":3,"b":2,"n":0}]}
+  ],
+  "stats": {"deals":[{"bits":7.6,"tier":1,"clues":3,"sentences":3,"spare":0,"coords":false,"reach":4,"broad":4,"pair":false,"pairUsed":false,"facts":[2,3],"rounds":2,"footholds":1,"animals":2,"words":17,"nots":0},{"bits":5.6,"tier":1,"clues":3,"sentences":3,"spare":0,"coords":false,"reach":3,"broad":3,"pair":false,"pairUsed":false,"facts":[2,3],"rounds":2,"footholds":1,"animals":2,"words":16,"nots":0}],"repeats":{"kinds":5,"most":{"kind":"touch","uses":2}},"landmarks":0,"tier":1,"tierName":"In turn","sentences":6,"coords":false,"reach":3,"broad":3.5,"pairDeals":0,"pairsUsed":0,"facts":2.5,"factsMost":3,"rounds":2,"footholds":1,"words":8.3,"nots":0,"difficulty":9}
+}

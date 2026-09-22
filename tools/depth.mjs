@@ -13,7 +13,7 @@
 //
 //   node tools/depth.mjs [boards-per-funnel-step]
 //
-// Reads levels/levels.json and a sweep of fresh boards along the funnel.
+// Reads the level files in levels/ and a sweep of fresh boards along the funnel.
 
 import fs from 'node:fs';
 import path from 'node:path';
@@ -22,7 +22,8 @@ import { makeLevel } from '../src/generate.js';
 import { FUNNEL } from '../src/funnel.js';
 import { chunks } from '../src/clues.js';
 import { sentenceReach } from '../src/deduce.js';
-import { candidates, puzzleFromLevel, LEVEL_FILE } from '../src/levels.js';
+import { candidates, puzzleFromLevel } from '../src/levels.js';
+import { readBook } from './book.mjs';
 import { makeRules, mulberry32 } from '../src/util.js';
 
 const root = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -52,10 +53,9 @@ const summary = (reaches) => {
   return `${String(pinned).padStart(3)}/${String(reaches.length).padEnd(3)} pinned by one sentence (${String(Math.round((100 * pinned) / reaches.length)).padStart(3)}%), mean reach ${avg.toFixed(1)}`;
 };
 
-const file = path.join(root, LEVEL_FILE);
-if (fs.existsSync(file)) {
-  const book = JSON.parse(fs.readFileSync(file, 'utf8'));
-  console.log(`${LEVEL_FILE}`);
+const book = readBook(root);
+if (book.levels.length) {
+  console.log('levels/');
   book.levels.forEach((lv, k) => {
     console.log(`  level ${String(k + 1).padStart(2)}  ${summary(focus(puzzleFromLevel(lv)))}`);
   });

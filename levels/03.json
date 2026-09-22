@@ -1,0 +1,32 @@
+{
+  "id": "cumr0znvbs",
+  "name": "",
+  "seed": 20260923,
+  "spec": {"N":6,"lands":3,"tier":0,"vocab":0,"spare":0,"perCard":2,"landmarks":2,"varied":true,"coords":false,"dealSize":1,"depth":2,"pairs":0,"footholds":null},
+  "N": 6,
+  "zoneOf": [
+    1, 0, 0, 0, 0, 0,
+    1, 1, 1, 0, 0, 0,
+    1, 1, 1, 1, 1, 0,
+    2, 1, 1, 1, 0, 0,
+    2, 1, 1, 1, 1, 0,
+    2, 2, 2, 2, 2, 2
+  ],
+  "lands": ["Ocean","Mountain","Desert"],
+  "zoneLand": [0,1,2],
+  "animals": [
+    {"icon":"🦡","name":"badger","land":1,"cell":12,"round":0},
+    {"icon":"🐢","name":"turtle","land":2,"cell":30,"round":1},
+    {"icon":"🐙","name":"octopus","land":0,"cell":17,"round":2}
+  ],
+  "landmarks": [
+    {"icon":"🌳","name":"tree","cell":31},
+    {"icon":"⛺","name":"tent","cell":16}
+  ],
+  "deals": [
+    {"animals":[0],"spare":0,"clues":[{"k":"top","a":0,"b":-1,"n":0},{"k":"nearLand","a":0,"b":-1,"n":2}]},
+    {"animals":[1],"spare":0,"clues":[{"k":"side","a":1,"b":-1,"n":3},{"k":"touch","a":1,"b":-1,"n":0,"m":0}]},
+    {"animals":[2],"spare":0,"clues":[{"k":"rim","a":2,"b":-1,"n":0},{"k":"touch","a":2,"b":-1,"n":0,"m":1}]}
+  ],
+  "stats": {"deals":[{"bits":3.9,"tier":0,"clues":2,"sentences":2,"spare":0,"coords":false,"reach":6,"broad":6,"pair":false,"pairUsed":false,"facts":[2],"rounds":1,"footholds":1,"animals":1,"words":10,"nots":0},{"bits":2.8,"tier":0,"clues":2,"sentences":2,"spare":0,"coords":false,"reach":2,"broad":2,"pair":false,"pairUsed":false,"facts":[2],"rounds":1,"footholds":1,"animals":1,"words":12,"nots":0},{"bits":3.6,"tier":0,"clues":2,"sentences":2,"spare":0,"coords":false,"reach":3,"broad":3,"pair":false,"pairUsed":false,"facts":[2],"rounds":1,"footholds":1,"animals":1,"words":11,"nots":0}],"repeats":{"kinds":5,"most":{"kind":"touch","uses":2}},"landmarks":2,"tier":0,"tierName":"Alone","sentences":6,"coords":false,"reach":2,"broad":3.7,"pairDeals":0,"pairsUsed":0,"facts":2,"factsMost":2,"rounds":1,"footholds":1,"words":11,"nots":0,"difficulty":3}
+}

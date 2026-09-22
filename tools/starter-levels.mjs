@@ -1,4 +1,4 @@
-// Rebuild the starter levels: one per funnel step, overwriting levels/levels.json.
+// Rebuild the starter levels: one per funnel step, overwriting the files in levels/.
 //
 // The levels named on the command line are copied from the current file
 // untouched, at the same position -- same boards, same ids -- and only
@@ -12,16 +12,16 @@
 // kinds. Deterministic seeds, so a
 // rerun gives the same levels until the generator changes.
 //
-// THIS OVERWRITES levels/levels.json. Use it only while the levels are still the
+// THIS OVERWRITES levels/. Use it only while the levels are still the
 // generated starter set -- once levels have been curated in the editor, don't.
 // Level ids are random, so a rebuilt level gets a new id, and players lose their
 // progress on it (progress is kept by id).
 //
 //   node tools/starter-levels.mjs [keep]      e.g. 1-4 (the default), 4-14, 6-13:7
-import fs from 'node:fs';
 import { makeLevel, readingOrder } from '../src/generate.js';
 import { FUNNEL } from '../src/funnel.js';
-import { candidates, serializeLevel, formatBook, emptyBook, measure, puzzleFromLevel } from '../src/levels.js';
+import { candidates, serializeLevel, emptyBook, measure, puzzleFromLevel } from '../src/levels.js';
+import { readBook, writeBook } from './book.mjs';
 import { chunks, VOCABULARY } from '../src/clues.js';
 import { makeRules, mulberry32 } from '../src/util.js';
 
@@ -35,8 +35,7 @@ const KEEP = new Map(
     return Array.from({ length: b - a + 1 }, (_, k) => [a + k, start + k]);
   })
 );
-const file = new URL('../levels/levels.json', import.meta.url);
-const old = fs.existsSync(file) ? JSON.parse(fs.readFileSync(file, 'utf8')) : emptyBook();
+const old = readBook();
 const book = emptyBook();
 
 /** The kind of every sentence a level says, one entry per sentence. */
@@ -121,7 +120,7 @@ FUNNEL.forEach((spec, step) => {
       ` difficulty ${String(pick.stats.difficulty).padStart(2)}, most repeated x${pick.stats.repeats.most.uses}`
   );
 });
-fs.writeFileSync(file, formatBook(book));
+writeBook(book);
 console.log(`wrote ${book.levels.length} levels\n`);
 
 book.levels.slice(0, 3).forEach((lv, k) => {

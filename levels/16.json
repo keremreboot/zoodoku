@@ -1,0 +1,43 @@
+{
+  "id": "udwfsuczrb",
+  "name": "",
+  "seed": 20274945,
+  "spec": {"N":9,"lands":12,"tier":2,"vocab":3,"spare":0,"perCard":2,"landmarks":1,"varied":true,"coords":false,"dealSize":4,"depth":4,"pairs":0,"footholds":1},
+  "N": 9,
+  "zoneOf": [
+     5,  5,  5,  5,  5,  3,  1,  1,  1,
+     2,  5,  5,  5,  5,  3,  1,  1,  4,
+     2,  2,  2,  2,  2,  3,  6,  4,  4,
+     7,  7,  2,  3,  3,  3,  6,  6,  4,
+     0,  7,  7,  7,  7,  3,  6,  4,  4,
+     0,  0,  0,  8,  7,  3,  6, 11,  4,
+     0,  0, 10,  8,  8,  9,  9, 11,  4,
+    10, 10, 10,  8,  8,  9,  9, 11, 11,
+    10, 10, 10,  8,  8,  8,  9,  9, 11
+  ],
+  "lands": ["Savanna","Ocean","Mountain"],
+  "zoneLand": [0,2,2,0,0,1,1,2,2,1,1,0],
+  "animals": [
+    {"icon":"🦁","name":"lion","land":0,"cell":5,"round":0},
+    {"icon":"🦀","name":"crab","land":1,"cell":4,"round":0},
+    {"icon":"🐋","name":"whale","land":1,"cell":59,"round":0},
+    {"icon":"🐼","name":"panda","land":2,"cell":6,"round":0},
+    {"icon":"🐘","name":"elephant","land":0,"cell":52,"round":1},
+    {"icon":"🐆","name":"leopard","land":0,"cell":17,"round":1},
+    {"icon":"🐙","name":"octopus","land":1,"cell":24,"round":1},
+    {"icon":"🦙","name":"llama","land":2,"cell":22,"round":1},
+    {"icon":"🦏","name":"rhino","land":0,"cell":47,"round":2},
+    {"icon":"🦈","name":"shark","land":1,"cell":56,"round":2},
+    {"icon":"🐺","name":"wolf","land":2,"cell":49,"round":2},
+    {"icon":"🦍","name":"gorilla","land":2,"cell":58,"round":2}
+  ],
+  "landmarks": [
+    {"icon":"🌳","name":"tree","cell":14}
+  ],
+  "deals": [
+    {"animals":[0,1,2,3],"spare":0,"clues":[{"k":"rim","a":0,"b":-1,"n":0},{"k":"landsAround","a":0,"b":-1,"n":2},{"k":"sameRow","a":1,"b":3,"n":0},{"k":"touch","a":1,"b":0,"n":0},{"k":"sameCol","a":2,"b":0,"n":0},{"k":"nearLand","a":2,"b":-1,"n":0},{"k":"steps","a":3,"b":1,"n":2}]},
+    {"animals":[4,5,6,7],"spare":0,"clues":[{"k":"side","a":5,"b":-1,"n":1},{"k":"nearLand","a":5,"b":-1,"n":2},{"k":"closer","a":6,"b":4,"n":0,"b2":2},{"k":"steps","a":7,"b":5,"n":5},{"k":"closer","a":7,"b":6,"n":0,"b2":0}]},
+    {"animals":[8,9,10,11],"spare":0,"clues":[{"k":"sameCol","a":8,"b":9,"n":0},{"k":"sameRow","a":9,"b":11,"n":0},{"k":"bottom","a":10,"b":-1,"n":0},{"k":"landSize","a":10,"b":-1,"n":7},{"k":"eitherTouch","a":11,"b":10,"n":0,"m2":0}]}
+  ],
+  "stats": {"deals":[{"bits":19,"tier":1,"clues":7,"sentences":7,"spare":0,"coords":false,"reach":9,"broad":14.5,"pair":true,"pairUsed":false,"facts":[2,3,4,5],"rounds":3,"footholds":1,"animals":4,"words":40,"nots":0},{"bits":16.5,"tier":1,"clues":5,"sentences":5,"spare":0,"coords":false,"reach":5,"broad":13.3,"pair":true,"pairUsed":true,"facts":[5,2,4,3],"rounds":4,"footholds":1,"animals":4,"words":39,"nots":0},{"bits":13.2,"tier":2,"clues":5,"sentences":5,"spare":0,"coords":false,"reach":7,"broad":6.8,"pair":true,"pairUsed":false,"facts":[3,2,2,2],"rounds":4,"footholds":1,"animals":4,"words":33,"nots":0}],"repeats":{"kinds":12,"most":{"kind":"sameRow","uses":2}},"landmarks":1,"tier":2,"tierName":"Together","sentences":17,"coords":false,"reach":5,"broad":11.5,"pairDeals":3,"pairsUsed":1,"facts":3.1,"factsMost":5,"rounds":4,"footholds":1,"words":9.3,"nots":0,"difficulty":60}
+}

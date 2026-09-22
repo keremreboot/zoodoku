@@ -1,0 +1,39 @@
+{
+  "id": "99n1f5kb3p",
+  "name": "",
+  "seed": 20269946,
+  "spec": {"N":7,"lands":9,"tier":1,"vocab":2,"spare":0,"perCard":2,"landmarks":2,"varied":true,"coords":false,"depth":3,"pairs":1,"footholds":2},
+  "N": 7,
+  "zoneOf": [
+    2, 0, 0, 1, 1, 3, 3,
+    2, 0, 1, 1, 1, 3, 3,
+    2, 0, 0, 0, 1, 1, 3,
+    2, 4, 4, 4, 5, 5, 3,
+    7, 4, 4, 4, 5, 5, 5,
+    7, 7, 4, 6, 6, 8, 8,
+    7, 7, 6, 6, 6, 8, 8
+  ],
+  "lands": ["Meadow","Forest","Ocean"],
+  "zoneLand": [2,0,0,2,1,1,0,1,2],
+  "animals": [
+    {"icon":"🐖","name":"pig","land":0,"cell":9,"round":0},
+    {"icon":"🐗","name":"boar","land":1,"cell":22,"round":0},
+    {"icon":"🐙","name":"octopus","land":2,"cell":8,"round":0},
+    {"icon":"🐿️","name":"squirrel","land":1,"cell":34,"round":1},
+    {"icon":"🦈","name":"shark","land":2,"cell":40,"round":1},
+    {"icon":"🐬","name":"dolphin","land":2,"cell":27,"round":1},
+    {"icon":"🐐","name":"goat","land":0,"cell":44,"round":2},
+    {"icon":"🐑","name":"sheep","land":0,"cell":21,"round":2},
+    {"icon":"🦌","name":"deer","land":1,"cell":28,"round":2}
+  ],
+  "landmarks": [
+    {"icon":"🌵","name":"cactus","cell":15},
+    {"icon":"⛲","name":"fountain","cell":46}
+  ],
+  "deals": [
+    {"animals":[0,1,2],"spare":0,"clues":[{"k":"biggest","a":0,"b":-1,"n":0},{"k":"left","a":0,"b":-1,"n":0},{"k":"eitherTouch","a":1,"b":0,"n":0,"m2":0},{"k":"notNearLand","a":2,"b":-1,"n":1},{"k":"landsAround","a":2,"b":-1,"n":2}]},
+    {"animals":[3,4,5],"spare":0,"clues":[{"k":"rim","a":3,"b":-1,"n":0},{"k":"landBorders","a":3,"b":-1,"n":2},{"k":"notSide","a":4,"b":-1,"n":1},{"k":"nearLand","a":4,"b":-1,"n":1},{"k":"below","a":5,"b":-1,"n":0,"m":0}]},
+    {"animals":[6,7,8],"spare":0,"clues":[{"k":"left","a":6,"b":-1,"n":0},{"k":"markInLand","a":6,"b":-1,"n":0,"m":1},{"k":"nearLand","a":7,"b":-1,"n":1},{"k":"zoneEdge","a":8,"b":-1,"n":0},{"k":"side","a":8,"b":-1,"n":3}]}
+  ],
+  "stats": {"deals":[{"bits":11.9,"tier":1,"clues":5,"sentences":5,"spare":0,"coords":false,"reach":4,"broad":6,"pair":false,"pairUsed":false,"facts":[2,3,2],"rounds":2,"footholds":2,"animals":3,"words":32,"nots":1},{"bits":10,"tier":1,"clues":5,"sentences":5,"spare":0,"coords":false,"reach":3,"broad":4.3,"pair":true,"pairUsed":true,"facts":[2,2,3],"rounds":2,"footholds":2,"animals":3,"words":25,"nots":1},{"bits":8.3,"tier":1,"clues":5,"sentences":5,"spare":0,"coords":false,"reach":3,"broad":3.7,"pair":true,"pairUsed":true,"facts":[2,3,2],"rounds":2,"footholds":2,"animals":3,"words":28,"nots":0}],"repeats":{"kinds":13,"most":{"kind":"left","uses":2}},"landmarks":2,"tier":1,"tierName":"In turn","sentences":15,"coords":false,"reach":3,"broad":4.7,"pairDeals":2,"pairsUsed":2,"facts":2.3,"factsMost":3,"rounds":2,"footholds":2,"words":9.4,"nots":13,"difficulty":19}
+}

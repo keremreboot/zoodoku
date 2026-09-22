@@ -7,8 +7,9 @@
 // that once made it has moved on. The spec and seed are kept alongside, but
 // only as a record of how it was made.
 //
-// Levels live in levels/levels.json, in play order. The editor writes that
-// file; the game only reads it.
+// Levels live in levels/, one file each -- 01.json, 02.json, ... in play order
+// -- with levels/index.json listing them, since a static site cannot list a
+// folder. The editor writes them (through the dev server); the game only reads.
 
 import { LANDS } from './habitats.js';
 import { describeZones } from './zones.js';
@@ -16,7 +17,7 @@ import { COORDS, boardContext, chunks, ideas, sentenceCount } from './clues.js';
 import { TIERS, factsNeeded, footholds, groupClues, isSolved, narrow, rounds, sentenceReach, tierNeeded } from './deduce.js';
 import { makeRules } from './util.js';
 
-export const LEVEL_FILE = 'levels/levels.json';
+export const LEVEL_DIR = 'levels';
 
 /** Where the editor leaves a candidate for the game to open at #playtest. */
 export const PLAYTEST_KEY = 'zoodoku.playtest';
@@ -262,25 +263,72 @@ export function puzzleFromLevel(level) {
   };
 }
 
-/** An empty level list, the shape levels.json always has. */
+/** An empty level list: the shape a book of levels always has in memory. */
 export const emptyBook = () => ({ format: FORMAT, levels: [] });
 
-/** Fetch the level list. A missing file is an empty list, not an error. */
-export async function loadLevels(url = LEVEL_FILE) {
-  const res = await fetch(url, { cache: 'no-store' });
+/** The file a level lives in, by its place in the order: level 5 is 05.json. */
+export const levelFileName = (k) => `${String(k + 1).padStart(2, '0')}.json`;
+
+/**
+ * Fetch the levels: the index first, for the order, then every level file at
+ * once. A missing index is an empty list, not an error.
+ */
+export async function loadLevels(dir = LEVEL_DIR) {
+  const res = await fetch(`${dir}/index.json`, { cache: 'no-store' });
   if (res.status === 404) return emptyBook();
-  if (!res.ok) throw new Error(`could not load ${url}: HTTP ${res.status}`);
-  const book = await res.json();
-  if (book.format !== FORMAT) throw new Error(`${url} is format ${book.format}, expected ${FORMAT}`);
-  return book;
+  if (!res.ok) throw new Error(`could not load ${dir}/index.json: HTTP ${res.status}`);
+  const index = await res.json();
+  if (index.format !== FORMAT) throw new Error(`${dir}/index.json is format ${index.format}, expected ${FORMAT}`);
+  const levels = await Promise.all(
+    index.levels.map(async (name) => {
+      const file = await fetch(`${dir}/${name}`, { cache: 'no-store' });
+      if (!file.ok) throw new Error(`could not load ${dir}/${name}: HTTP ${file.status}`);
+      return file.json();
+    })
+  );
+  return { format: FORMAT, levels };
 }
 
 /**
- * levels.json as text: one line per level. A level is a few hundred numbers
- * nobody edits by hand, so pretty-printing it only buries the one thing a diff
- * should show -- which levels were added, removed or moved.
+ * One level as the text of its own file. Nobody edits a level by hand, but
+ * people do open one to look at it, and diff it: so every field sits on its
+ * own line, lists of things (animals, deals) one to a line, and the land map
+ * laid out as the board it is -- N rows of N -- so which land is where can be
+ * seen at a glance. It is still plain JSON: the line breaks are whitespace.
  */
-export function formatBook(book) {
-  const lines = book.levels.map((lv) => `    ${JSON.stringify(lv)}`);
-  return `{\n  "format": ${FORMAT},\n  "levels": [\n${lines.join(',\n')}${lines.length ? '\n' : ''}  ]\n}\n`;
+export function formatLevel(lv) {
+  const field = ([key, value]) => {
+    const name = JSON.stringify(key);
+    if (key === 'zoneOf' && Array.isArray(value) && lv.N) {
+      const wide = String(Math.max(...value)).length;
+      const rows = [];
+      for (let r = 0; r < value.length; r += lv.N) {
+        rows.push(`    ${value.slice(r, r + lv.N).map((z) => String(z).padStart(wide)).join(', ')}`);
+      }
+      return `  ${name}: [\n${rows.join(',\n')}\n  ]`;
+    }
+    if (Array.isArray(value) && value.length && value.every((v) => v && typeof v === 'object')) {
+      return `  ${name}: [\n${value.map((v) => `    ${JSON.stringify(v)}`).join(',\n')}\n  ]`;
+    }
+    return `  ${name}: ${JSON.stringify(value)}`;
+  };
+  return `{\n${Object.entries(lv).map(field).join(',\n')}\n}\n`;
 }
+
+/**
+ * A book of levels as the files that hold it: one per level, named by its
+ * place in the order, and the index that gives the order. Moving a level in
+ * the editor renumbers the files after it.
+ */
+export function splitBook(book) {
+  const names = book.levels.map((_, k) => levelFileName(k));
+  const index = `{\n  "format": ${FORMAT},\n  "levels": [\n${names.map((n) => `    "${n}"`).join(',\n')}${names.length ? '\n' : ''}  ]\n}\n`;
+  return { index, files: book.levels.map((lv, k) => [names[k], formatLevel(lv)]) };
+}
+
+/**
+ * The whole book as one file -- only for carrying it somewhere, as the editor's
+ * download does when there is no dev server to save through;
+ * `npm run levels:import` splits it back into levels/.
+ */
+export const formatBook = (book) => `${JSON.stringify({ format: FORMAT, levels: book.levels })}\n`;

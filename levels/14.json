@@ -1,0 +1,37 @@
+{
+  "id": "ow068xkey4",
+  "name": "",
+  "seed": 20272939,
+  "spec": {"N":8,"lands":9,"tier":2,"vocab":3,"spare":0,"perCard":2,"landmarks":1,"varied":true,"coords":false,"depth":4,"pairs":1,"footholds":1},
+  "N": 8,
+  "zoneOf": [
+    2, 2, 0, 0, 1, 3, 3, 3,
+    2, 2, 0, 1, 1, 1, 3, 3,
+    2, 2, 0, 1, 1, 1, 3, 7,
+    2, 6, 0, 4, 1, 1, 3, 7,
+    2, 6, 4, 4, 4, 7, 7, 7,
+    6, 6, 8, 4, 4, 7, 7, 5,
+    6, 6, 8, 8, 8, 7, 5, 5,
+    6, 8, 8, 8, 8, 5, 5, 5
+  ],
+  "lands": ["Desert","Ocean","Meadow"],
+  "zoneLand": [2,0,1,0,1,0,2,2,1],
+  "animals": [
+    {"icon":"🦩","name":"flamingo","land":0,"cell":54,"round":0},
+    {"icon":"🐋","name":"whale","land":1,"cell":52,"round":0},
+    {"icon":"🐓","name":"rooster","land":2,"cell":46,"round":0},
+    {"icon":"🦎","name":"lizard","land":0,"cell":5,"round":1},
+    {"icon":"🐍","name":"snake","land":0,"cell":4,"round":1},
+    {"icon":"🐬","name":"dolphin","land":1,"cell":36,"round":1},
+    {"icon":"🦀","name":"crab","land":1,"cell":24,"round":2},
+    {"icon":"🐄","name":"cow","land":2,"cell":25,"round":2},
+    {"icon":"🐖","name":"pig","land":2,"cell":26,"round":2}
+  ],
+  "landmarks": [],
+  "deals": [
+    {"animals":[0,1,2],"spare":0,"clues":[{"k":"nearLand","a":0,"b":-1,"n":2},{"k":"diagonal","a":0,"b":-1,"n":0},{"k":"notTouch","a":1,"b":2,"n":0},{"k":"steps","a":1,"b":0,"n":2},{"k":"touch","a":2,"b":0,"n":0}]},
+    {"animals":[3,4,5],"spare":0,"clues":[{"k":"closer","a":3,"b":5,"n":0,"b2":2},{"k":"landBorders","a":4,"b":-1,"n":1},{"k":"rim","a":4,"b":-1,"n":0},{"k":"bottom","a":5,"b":-1,"n":0}]},
+    {"animals":[6,7,8],"spare":0,"clues":[{"k":"sameRow","a":6,"b":7,"n":0},{"k":"landSize","a":7,"b":-1,"n":7},{"k":"above","a":7,"b":5,"n":0},{"k":"eitherTouch","a":8,"b":7,"n":0,"b2":5}]}
+  ],
+  "stats": {"deals":[{"bits":13.2,"tier":1,"clues":5,"sentences":5,"spare":0,"coords":false,"reach":6,"broad":8.3,"pair":false,"pairUsed":false,"facts":[2,3,4],"rounds":3,"footholds":1,"animals":3,"words":31,"nots":1},{"bits":11.8,"tier":2,"clues":4,"sentences":4,"spare":0,"coords":false,"reach":5,"broad":7,"pair":true,"pairUsed":true,"facts":[2,2,3],"rounds":3,"footholds":1,"animals":3,"words":26,"nots":0},{"bits":10.2,"tier":1,"clues":4,"sentences":4,"spare":0,"coords":false,"reach":6,"broad":8.7,"pair":true,"pairUsed":true,"facts":[3,2,2],"rounds":2,"footholds":1,"animals":3,"words":26,"nots":0}],"repeats":{"kinds":13,"most":{"kind":"nearLand","uses":1}},"landmarks":0,"tier":2,"tierName":"Together","sentences":13,"coords":false,"reach":5,"broad":8,"pairDeals":2,"pairsUsed":2,"facts":2.6,"factsMost":4,"rounds":3,"footholds":1,"words":9.2,"nots":8,"difficulty":33}
+}

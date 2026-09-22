@@ -8,6 +8,7 @@
     "audit": "node tools/audit.mjs 20",
     "audit:quick": "node tools/audit.mjs 3 --sample",
     "starter": "node tools/starter-levels.mjs",
-    "depth": "node tools/depth.mjs"
+    "depth": "node tools/depth.mjs",
+    "levels:import": "node tools/book.mjs import"
   }
 }

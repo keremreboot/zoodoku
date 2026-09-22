@@ -390,8 +390,16 @@ level easier than the one before it shows red — maybe a deliberate breather,
 maybe a mistake, but either way a decision. Levels can be moved and deleted
 from the list.
 
-Saving goes through the local server into `levels/levels.json`. Opened any other
-way, the editor still works and offers the file as a download instead.
+Saving goes through the local server into `levels/`: one file per level,
+`01.json`, `02.json` and so on in play order, and `index.json` listing them —
+the game reads the index first, since a static site can't list a folder.
+Moving a level renumbers the files after it. Opened any other way, the editor
+still works and offers the whole set as one download instead;
+`npm run levels:import -- <file>` splits it back into `levels/`.
+
+A level file is plain JSON laid out to be looked at: a field to a line, the
+animals and deals one to a line, and the land map as the board it is — six
+rows of six on a 6 × 6 — so which land is where shows at a glance.
 
 ### Why a locked level is stored whole
 
@@ -510,7 +518,7 @@ npm run audit
 ```
 
 The audit checks the promises the game makes, without trusting any of the code
-that made them. For every level in `levels/levels.json`, and for fresh boards
+that made them. For every level in `levels/`, and for fresh boards
 along every step of the funnel, it:
 
 - solves every deal by elimination at its level's leaning, with its **own**
@@ -534,7 +542,9 @@ that also prints a sample level, so you can read the clues as a player would.
 
 - `index.html`, `src/main.js` — the game: levels, cards, pointer and panels
 - `editor.html`, `src/editor.js` — the level editor
-- `levels/levels.json` — the locked levels, in play order, one per line
+- `levels/` — the locked levels, one file each (`01.json`…), and `index.json`
+  giving the order
+- `tools/book.mjs` — reads and writes `levels/` for the dev server and tools
 - `src/clues.js` — what an animal can say: meaning, wording and the key
 - `src/deduce.js` — solving a deal by elimination, the no-guessing rule itself
 - `src/generate.js` — building a level to a spec: the answer, then the clues

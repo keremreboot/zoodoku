@@ -17,7 +17,7 @@
 //   - no animal and no other landmark stands on a landmark, and every
 //     landmark is mentioned by some clue -- one nobody mentions is clutter.
 //
-// It audits two things. levels/levels.json, because those are the levels
+// It audits two things. The level files in levels/, because those are the levels
 // players actually get -- locked, so a generator change cannot fix or break
 // them, and only this catches it if one was ever wrong. And a sweep of fresh
 // boards along the difficulty funnel, because the editor makes new levels with
@@ -34,7 +34,8 @@ import { makeLevel } from '../src/generate.js';
 import { FUNNEL } from '../src/funnel.js';
 import { ALL_KINDS, GLOSSARY, holds, ideas, phrase } from '../src/clues.js';
 import { TIERS } from '../src/deduce.js';
-import { puzzleFromLevel, LEVEL_FILE } from '../src/levels.js';
+import { puzzleFromLevel } from '../src/levels.js';
+import { readBook } from './book.mjs';
 import { makeRules, mulberry32, neighbours } from '../src/util.js';
 
 const root = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -324,15 +325,14 @@ let failed = 0;
 
 // --- the locked levels -----------------------------------------------------
 {
-  const file = path.join(root, LEVEL_FILE);
-  if (!fs.existsSync(file)) {
-    console.log(`${LEVEL_FILE}: none yet`);
+  const book = readBook(root);
+  if (!book.levels.length) {
+    console.log('levels/: none yet');
   } else {
-    const book = JSON.parse(fs.readFileSync(file, 'utf8'));
     const ids = new Set();
     let bad = 0;
     book.levels.forEach((level, k) => {
-      const label = `level ${k + 1} (${level.id})`;
+      const label = `level ${k + 1} (levels/${book.files[k]}, ${level.id})`;
       if (ids.has(level.id)) {
         console.log(`  FAIL ${label}: id used twice`);
         bad++;
@@ -354,7 +354,7 @@ let failed = 0;
       }
     });
     failed += bad;
-    console.log(`${LEVEL_FILE}: ${book.levels.length} levels, ${bad} failed`);
+    console.log(`levels/: ${book.levels.length} levels, ${bad} failed`);
   }
 }
 

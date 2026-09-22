@@ -1,0 +1,34 @@
+{
+  "id": "spsqvunwml",
+  "name": "",
+  "seed": 20264931,
+  "spec": {"N":6,"lands":6,"tier":0,"vocab":1,"spare":0,"perCard":2,"landmarks":2,"varied":true,"coords":false,"dealSize":3,"depth":3,"pairs":0,"footholds":null},
+  "N": 6,
+  "zoneOf": [
+    1, 1, 1, 0, 0, 0,
+    1, 1, 0, 0, 0, 0,
+    1, 5, 5, 5, 5, 0,
+    5, 5, 5, 4, 4, 4,
+    3, 3, 3, 4, 2, 2,
+    3, 3, 3, 2, 2, 2
+  ],
+  "lands": ["Savanna","Meadow","Ocean"],
+  "zoneLand": [1,1,2,2,0,0],
+  "animals": [
+    {"icon":"🦁","name":"lion","land":0,"cell":15,"round":0},
+    {"icon":"🐇","name":"rabbit","land":1,"cell":7,"round":0},
+    {"icon":"🦀","name":"crab","land":2,"cell":26,"round":0},
+    {"icon":"🦓","name":"zebra","land":0,"cell":23,"round":1},
+    {"icon":"🐄","name":"cow","land":1,"cell":11,"round":1},
+    {"icon":"🐟","name":"fish","land":2,"cell":33,"round":1}
+  ],
+  "landmarks": [
+    {"icon":"⛺","name":"tent","cell":27},
+    {"icon":"🌻","name":"sunflower","cell":16}
+  ],
+  "deals": [
+    {"animals":[0,1,2],"spare":0,"clues":[{"k":"markInLand","a":0,"b":-1,"n":0,"m":1},{"k":"right","a":0,"b":-1,"n":0},{"k":"smallest","a":1,"b":-1,"n":0},{"k":"inland","a":1,"b":-1,"n":0},{"k":"left","a":2,"b":-1,"n":0},{"k":"touch","a":2,"b":-1,"n":0,"m":0}]},
+    {"animals":[3,4,5],"spare":0,"clues":[{"k":"nearLand","a":3,"b":-1,"n":2},{"k":"notTouch","a":3,"b":-1,"n":0,"m":1},{"k":"notSide","a":4,"b":-1,"n":0},{"k":"notNearLand","a":4,"b":-1,"n":0},{"k":"zoneEdge","a":5,"b":-1,"n":0},{"k":"side","a":5,"b":-1,"n":2}]}
+  ],
+  "stats": {"deals":[{"bits":10.4,"tier":0,"clues":6,"sentences":6,"spare":0,"coords":false,"reach":3,"broad":3.7,"pair":false,"pairUsed":false,"facts":[2,2,2],"rounds":1,"footholds":3,"animals":3,"words":36,"nots":1},{"bits":6.9,"tier":0,"clues":6,"sentences":6,"spare":0,"coords":false,"reach":2,"broad":3,"pair":false,"pairUsed":false,"facts":[2,2,2],"rounds":1,"footholds":3,"animals":3,"words":34,"nots":3}],"repeats":{"kinds":12,"most":{"kind":"markInLand","uses":1}},"landmarks":2,"tier":0,"tierName":"Alone","sentences":12,"coords":false,"reach":2,"broad":3.4,"pairDeals":0,"pairsUsed":0,"facts":2,"factsMost":2,"rounds":1,"footholds":3,"words":11.7,"nots":33,"difficulty":6}
+}

@@ -3,7 +3,7 @@
 // Nothing here is typed by hand. The sliders make a spec, the generator builds
 // a level that meets it exactly -- or says it could not -- and a person decides
 // whether it is good enough to keep. Locking in writes the whole level into
-// levels/levels.json, so later changes to the generator cannot touch it.
+// levels/ (one file per level), so later changes to the generator cannot touch it.
 //
 // Saving goes through the local dev server (npm start). Opened any other way,
 // the editor still works, and offers the file as a download instead.
@@ -469,12 +469,12 @@ async function save() {
       body: JSON.stringify(book),
     });
     if (!res.ok) throw new Error(await res.text());
-    setStatus(ui.saveStatus, `Saved ${book.levels.length} levels to levels/levels.json.`, 'good');
+    setStatus(ui.saveStatus, `Saved ${book.levels.length} levels to levels/, one file each.`, 'good');
     ui.download.hidden = true;
   } catch {
     setStatus(
       ui.saveStatus,
-      'Not saved to disk — the editor saves through `npm start`. Download the file and put it in levels/ instead.',
+      'Not saved to disk — the editor saves through `npm start`. Download the levels and run `npm run levels:import -- <file>` instead.',
       'warn'
     );
     ui.download.hidden = false;
@@ -485,7 +485,7 @@ ui.download.addEventListener('click', () => {
   const blob = new Blob([formatBook(book)], { type: 'application/json' });
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
-  a.download = 'levels.json';
+  a.download = 'zoodoku-levels.json';
   a.click();
   setTimeout(() => URL.revokeObjectURL(a.href), 1000);
 });

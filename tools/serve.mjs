@@ -3,7 +3,8 @@
 //
 // Two things can be written through it, both for local development only:
 //
-//   POST /levels      the level editor saves levels/levels.json here when you
+//   POST /levels      the level editor saves the levels here -- levels/NN.json
+//                     and levels/index.json -- when you
 //                     lock a level in, reorder or delete one
 //   POST /snap?name=x a data-URL body is written to tools/snaps/x.png -- how a
 //                     canvas render gets out of a headless browser for review
@@ -17,7 +18,8 @@ import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { FORMAT, LEVEL_FILE, formatBook } from '../src/levels.js';
+import { FORMAT } from '../src/levels.js';
+import { writeBook } from './book.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(process.argv[2] || path.join(here, '..'));
@@ -48,10 +50,8 @@ http
           res.writeHead(400, { 'Content-Type': 'text/plain' }).end(e.message);
           return;
         }
-        const file = path.join(ROOT, LEVEL_FILE);
-        fs.mkdirSync(path.dirname(file), { recursive: true });
-        fs.writeFileSync(file, formatBook(book));
-        console.log(`saved ${book.levels.length} levels to ${LEVEL_FILE}`);
+        writeBook(book, ROOT);
+        console.log(`saved ${book.levels.length} levels to levels/ (one file each, and index.json)`);
         res.writeHead(200, { 'Content-Type': 'application/json' }).end(JSON.stringify({ saved: book.levels.length }));
       });
       return;

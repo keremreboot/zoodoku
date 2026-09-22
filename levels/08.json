@@ -1,0 +1,34 @@
+{
+  "id": "6yzjakk9ru",
+  "name": "",
+  "seed": 20266955,
+  "spec": {"N":6,"lands":6,"tier":1,"vocab":1,"spare":1,"perCard":2,"landmarks":2,"varied":true,"coords":false,"depth":3,"pairs":0,"footholds":[3,2]},
+  "N": 6,
+  "zoneOf": [
+    2, 2, 2, 0, 0, 0,
+    2, 3, 3, 1, 1, 0,
+    2, 3, 3, 1, 5, 5,
+    4, 4, 3, 1, 5, 5,
+    4, 4, 3, 1, 1, 5,
+    4, 4, 3, 3, 1, 5
+  ],
+  "lands": ["Mountain","Meadow","Forest"],
+  "zoneLand": [0,2,2,0,1,1],
+  "animals": [
+    {"icon":"🐺","name":"wolf","land":0,"cell":11,"round":0},
+    {"icon":"🐓","name":"rooster","land":1,"cell":17,"round":0},
+    {"icon":"🦉","name":"owl","land":2,"cell":34,"round":0},
+    {"icon":"🐼","name":"panda","land":0,"cell":8,"round":1},
+    {"icon":"🐄","name":"cow","land":1,"cell":24,"round":1},
+    {"icon":"🦌","name":"deer","land":2,"cell":2,"round":1}
+  ],
+  "landmarks": [
+    {"icon":"⛲","name":"fountain","cell":25},
+    {"icon":"🌳","name":"tree","cell":10}
+  ],
+  "deals": [
+    {"animals":[0,1,2],"spare":0,"clues":[{"k":"nearLand","a":0,"b":-1,"n":1},{"k":"smallest","a":0,"b":-1,"n":0},{"k":"side","a":1,"b":-1,"n":1},{"k":"nearLand","a":1,"b":-1,"n":0},{"k":"rim","a":2,"b":-1,"n":0},{"k":"markInLand","a":2,"b":-1,"n":0,"m":1}]},
+    {"animals":[3,4,5],"spare":1,"clues":[{"k":"notNearLand","a":3,"b":-1,"n":1},{"k":"landsAround","a":3,"b":-1,"n":2},{"k":"side","a":4,"b":-1,"n":3},{"k":"touch","a":4,"b":-1,"n":0,"m":0},{"k":"landBorders","a":5,"b":-1,"n":1},{"k":"touch","a":5,"b":3,"n":0}]}
+  ],
+  "stats": {"deals":[{"bits":10.5,"tier":0,"clues":6,"sentences":6,"spare":0,"coords":false,"reach":3,"broad":4.3,"pair":false,"pairUsed":false,"facts":[2,2,2],"rounds":1,"footholds":3,"animals":3,"words":31,"nots":0},{"bits":7.6,"tier":1,"clues":6,"sentences":6,"spare":1,"coords":false,"reach":3,"broad":3.3,"pair":false,"pairUsed":false,"facts":[2,2,3],"rounds":2,"footholds":2,"animals":3,"words":33,"nots":1}],"repeats":{"kinds":9,"most":{"kind":"nearLand","uses":2}},"landmarks":2,"tier":1,"tierName":"In turn","sentences":12,"coords":false,"reach":3,"broad":3.8,"pairDeals":0,"pairsUsed":0,"facts":2.2,"factsMost":3,"rounds":2,"footholds":2,"words":10.7,"nots":8,"difficulty":7}
+}

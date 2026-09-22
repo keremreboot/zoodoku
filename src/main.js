@@ -1,9 +1,10 @@
 // Glue: level -> state -> view, plus the cards, the pointer and the sheets.
 //
-// The game plays curated levels, in order, from levels/levels.json. It never
-// generates a board itself: every level was made in the editor, looked at by a
-// person and locked in, and the audit checks each one can be solved without a
-// guess. Every level is open from the start; finishing one ticks it off.
+// The game plays curated levels, in order, from levels/ -- index.json for the
+// order, then a file per level. It never generates a board itself: every level
+// was made in the editor, looked at by a person and locked in, and the audit
+// checks each one can be solved without a guess. Every level is open from the
+// start; finishing one ticks it off.
 //
 // An animal is carried rather than dragged. Pressing a card picks it up and it
 // stays up until it lands, which means the same code serves a drag across the

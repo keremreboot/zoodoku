@@ -1,0 +1,30 @@
+{
+  "id": "jznccvttqf",
+  "name": "",
+  "seed": 20261940,
+  "spec": {"N":5,"lands":4,"tier":0,"vocab":0,"spare":0,"perCard":1,"landmarks":2,"varied":true,"coords":false,"dealSize":2,"depth":1,"pairs":0,"footholds":null},
+  "N": 5,
+  "zoneOf": [
+    1, 1, 2, 0, 0,
+    1, 1, 2, 0, 0,
+    2, 2, 2, 2, 0,
+    2, 3, 3, 2, 0,
+    3, 3, 3, 3, 0
+  ],
+  "lands": ["Ocean","Meadow","Savanna"],
+  "zoneLand": [0,0,1,2],
+  "animals": [
+    {"icon":"🦈","name":"shark","land":0,"cell":5,"round":0},
+    {"icon":"🐐","name":"goat","land":1,"cell":2,"round":0},
+    {"icon":"🐬","name":"dolphin","land":0,"cell":24,"round":1},
+    {"icon":"🐘","name":"elephant","land":2,"cell":20,"round":1}
+  ],
+  "landmarks": [
+    {"icon":"🍄","name":"mushroom","cell":10}
+  ],
+  "deals": [
+    {"animals":[0,1],"spare":0,"clues":[{"k":"touch","a":0,"b":-1,"n":0,"m":0},{"k":"side","a":1,"b":-1,"n":0}]},
+    {"animals":[2,3],"spare":0,"clues":[{"k":"nearLand","a":2,"b":-1,"n":2},{"k":"corner","a":3,"b":-1,"n":0}]}
+  ],
+  "stats": {"deals":[{"bits":6.3,"tier":0,"clues":2,"sentences":2,"spare":0,"coords":false,"reach":1,"broad":1,"pair":false,"pairUsed":false,"facts":[1,1],"rounds":1,"footholds":2,"animals":2,"words":12,"nots":0},{"bits":5.4,"tier":0,"clues":2,"sentences":2,"spare":0,"coords":false,"reach":1,"broad":1,"pair":false,"pairUsed":false,"facts":[1,1],"rounds":1,"footholds":2,"animals":2,"words":11,"nots":0}],"repeats":{"kinds":4,"most":{"kind":"touch","uses":1}},"landmarks":1,"tier":0,"tierName":"Alone","sentences":4,"coords":false,"reach":1,"broad":1,"pairDeals":0,"pairsUsed":0,"facts":1,"factsMost":1,"rounds":1,"footholds":2,"words":5.8,"nots":0,"difficulty":3}
+}
