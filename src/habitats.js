@@ -12,8 +12,8 @@
 // a cosmetic problem. Check any replacement on the oldest target you care about.
 //
 // No animal appears in two lands. A puzzle names its animals out loud ("I touch
-// the fox"), so a fox in both Forest and Dusk would make that sentence point at
-// two different squares.
+// the fox"), so a fox in both Forest and Mountain would make that sentence
+// point at two different squares.
 
 import { shuffle } from './util.js';
 
@@ -47,11 +47,11 @@ export const LANDS = [
     animals: ['🐄 cow', '🐑 sheep', '🐖 pig', '🐓 rooster', '🐐 goat', '🐇 rabbit'],
   },
   {
-    name: 'Dusk',
+    name: 'Mountain',
     hue: 268,
     ink: '#5d4a8c',
     tint: '#ded5ee',
-    animals: ['🦇 bat', '🐺 wolf', '🕷️ spider', '🦔 hedgehog', '🐀 rat', '🦂 scorpion'],
+    animals: ['🦅 eagle', '🐺 wolf', '🦙 llama', '🦡 badger', '🐼 panda', '🦍 gorilla'],
   },
   {
     name: 'Desert',
