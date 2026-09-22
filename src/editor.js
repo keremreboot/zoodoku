@@ -5,8 +5,10 @@
 // whether it is good enough to keep. Locking in writes the whole level into
 // levels/ (one file per level), so later changes to the generator cannot touch it.
 //
-// Saving goes through the local dev server (npm start). Opened any other way,
-// the editor still works, and offers the file as a download instead.
+// On the live site there is nothing to save to, so locking a level in
+// downloads it as a JSON file -- the same text the game's own level files
+// hold. Run locally through the dev server (npm start), it also writes the
+// level files in levels/ directly.
 
 import { DEFAULT_SPEC, dealSizes, landOptions, makeLevel, maxPairs } from './generate.js';
 import { VOCABULARY, chunks } from './clues.js';
@@ -16,6 +18,7 @@ import {
   PLAYTEST_KEY,
   emptyBook,
   formatBook,
+  formatLevel,
   loadLevels,
   measure,
   puzzleFromLevel,
@@ -56,6 +59,9 @@ const SAID = {
 
 const view = new View(ui.stage);
 view.crossOut = false; // answers are shown all at once; crossing out would bury them
+
+/** Run through the local dev server, which can write the level files; anywhere else it cannot. */
+const LOCAL = ['localhost', '127.0.0.1'].includes(location.hostname);
 
 let book = emptyBook();
 let footholdPlan = null; // starting points per deal, when the funnel gives a list
@@ -354,8 +360,9 @@ ui.lock.addEventListener('click', () => {
   ui.lock.disabled = true;
   show(locked, at);
   drawSlots(at + 1);
-  save();
-  setStatus(ui.genStatus, `Locked in as level ${at + 1}.`, 'good');
+  const file = downloadLevel(locked, at);
+  if (LOCAL) save();
+  setStatus(ui.genStatus, `Locked in as level ${at + 1} — downloaded as ${file}.`, 'good');
 });
 
 function move(from, to) {
@@ -461,7 +468,24 @@ function drawBook() {
 
 // --- saving ------------------------------------------------------------------
 
+/** One level as a file of its own -- the text the game's levels/NN.json files hold. */
+function downloadLevel(lv, at) {
+  const name = `zoodoku-level-${String(at + 1).padStart(2, '0')}.json`;
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([formatLevel(lv)], { type: 'application/json' }));
+  a.download = name;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  return name;
+}
+
 async function save() {
+  // on the live site nothing can be written: the change lives in this page
+  if (!LOCAL) {
+    setStatus(ui.saveStatus, 'Changed on this page only. Each level you lock in is downloaded; “Download the levels” gives the whole list.', '');
+    ui.download.hidden = false;
+    return;
+  }
   try {
     const res = await fetch('./levels', {
       method: 'POST',
@@ -530,6 +554,10 @@ async function boot() {
       ? `${book.levels.length} levels loaded. The funnel suggests settings for up to level ${FUNNEL.length}.`
       : 'No levels yet.'
   );
+  if (!LOCAL) {
+    ui.download.hidden = false;
+    setStatus(ui.saveStatus, `${ui.saveStatus.textContent} Locking a level in downloads it as a JSON file.`);
+  }
   generate();
 }
 

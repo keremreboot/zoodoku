@@ -390,7 +390,13 @@ level easier than the one before it shows red — maybe a deliberate breather,
 maybe a mistake, but either way a decision. Levels can be moved and deleted
 from the list.
 
-Saving goes through the local server into `levels/`: one file per level,
+The editor is on the live site too: https://keremreboot.github.io/zoodoku/editor.html.
+There is nothing to save to there, so **locking a level in downloads it** as a
+JSON file — `zoodoku-level-05.json` and so on, the same text as the game's own
+level files — and **Download the levels** gives the whole list as one file.
+
+Run locally (`npm start`, or `npm.cmd start` in a PowerShell that blocks
+scripts), saving also goes through the local server into `levels/`: one file per level,
 `01.json`, `02.json` and so on in play order, and `index.json` listing them —
 the game reads the index first, since a static site can't list a folder.
 Moving a level renumbers the files after it. Opened any other way, the editor
