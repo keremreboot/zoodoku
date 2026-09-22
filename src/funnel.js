@@ -9,17 +9,15 @@
 // footholds), and how many animals arrive at once (the deal size). Players said the difficulty jumped when several of those moved
 // at once, so the shape is deliberate:
 //
-//   - the first levels are small, and every card is one short, positive fact
-//     -- "I'm in a corner of the board", "I'm next to the tree". The very first
-//     deals one card at a time, so a new player reads one sentence and places
-//     one animal; then two at a time; then two where one card leans on the
-//     other -- "I'm next to the fox" -- the whole idea of the game in its
-//     smallest form;
-//   - then three cards at a time, each standing alone again, still one fact
-//     to a card;
-//   - then depth: two facts to a card, neither of which says where the animal
-//     is on its own -- "I'm on the board's top edge. I'm next to Ocean." --
-//     first in the simple words, then vaguer, with "not" and whole-land facts;
+//   - from the very first level, every card is two short, positive facts,
+//     neither of which says where the animal is on its own: the first leaves
+//     several squares, the second cuts them to one -- "I'm in the board's top
+//     half. I'm in the middle of the board." Players said one-fact cards were
+//     corners and edges pointing at single squares, with nothing to work out;
+//   - the first level deals one card at a time; then two at a time; then two
+//     where one card leans on the other -- "I'm next to the fox" -- the whole
+//     idea of the game in its smallest form; then three at a time, each
+//     standing alone again; then vaguer, with "not" and whole-land facts;
 //   - "in turn": two animals a deal still found from their own card, the third
 //     through one of them -- the first deal of that level gentler still -- then
 //     rows and columns on a bigger board;
@@ -45,10 +43,9 @@
 import { DEFAULT_SPEC } from './generate.js';
 
 export const FUNNEL = [
-  { N: 5, lands: 3, dealSize: 1, tier: 0, vocab: 0, perCard: 1, spare: 0, landmarks: 2 },
-  { N: 5, lands: 4, dealSize: 2, tier: 0, vocab: 0, perCard: 1, spare: 0, landmarks: 2 },
-  { N: 5, lands: 4, dealSize: 2, tier: 1, vocab: 0, perCard: 1, spare: 0, landmarks: 2, footholds: 1 },
-  { N: 6, lands: 6, tier: 0, vocab: 0, perCard: 1, spare: 0, landmarks: 2 },
+  { N: 6, lands: 3, dealSize: 1, tier: 0, vocab: 0, perCard: 2, spare: 0, landmarks: 2, depth: 2 },
+  { N: 6, lands: 4, dealSize: 2, tier: 0, vocab: 0, perCard: 2, spare: 0, landmarks: 2, depth: 2 },
+  { N: 6, lands: 4, dealSize: 2, tier: 1, vocab: 0, perCard: 2, spare: 0, landmarks: 2, depth: 2, footholds: 1 },
   { N: 6, lands: 6, tier: 0, vocab: 0, perCard: 2, spare: 0, landmarks: 3, depth: 2 },
   { N: 6, lands: 6, tier: 0, vocab: 1, perCard: 2, spare: 0, landmarks: 2, depth: 3 },
   { N: 6, lands: 6, tier: 1, vocab: 1, perCard: 2, spare: 1, landmarks: 2, depth: 3, footholds: [3, 2] },

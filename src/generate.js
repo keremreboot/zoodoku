@@ -22,6 +22,7 @@
 import {
   BINARY,
   BOARD_FACTS,
+  FAMILY,
   LANDMARK_KINDS,
   RANK,
   UNARY,
@@ -109,6 +110,17 @@ export function footholdsAt(spec, round) {
   if (spec.tier === 0 || f == null) return null;
   if (Array.isArray(f)) return f.length ? f[Math.min(round, f.length - 1)] : null;
   return f;
+}
+
+/**
+ * The kinds a level may say. On an odd board the middle row is in neither
+ * half, which is exact but not something the first two rungs should lean on,
+ * so halves wait for Lines there.
+ */
+function allowedKinds(spec) {
+  const halves = ['top', 'bottom', 'left', 'right'];
+  const kinds = kindsFor(spec.vocab, spec.coords);
+  return spec.N % 2 === 1 && spec.vocab < 2 ? kinds.filter((k) => !halves.includes(k)) : kinds;
 }
 
 /**
@@ -447,11 +459,23 @@ function placeSimply(R, zones, zoneLand, zoneRound, group, round, rng, wants, pl
           }
         }
       }
+      // Or a board fact and "the tree is in my land": a landmark set down in
+      // this land, which then points at every square of it, and a fact true
+      // of just one of them.
+      if (plan.landmarksLeft > 0 && allow.has('markInLand') && zones.zoneCells[z].length >= Math.max(4, floor + 1)) {
+        const land = zones.zoneCells[z];
+        for (const i of land) {
+          for (const f of broad) {
+            if (!f.where.has(i) || land.some((j) => j !== i && f.where.has(j))) continue;
+            note(['markInLand', f.fact.k].sort(), i, { inLand: z }, Math.min(land.length - 1, f.where.size));
+          }
+        }
+      }
     }
     // Which way: the kinds said least so far across the level, then the
     // broadest -- a meet of two facts that each leave four squares is worth a
     // repeated kind, and the whole point of depth.
-    const used = (k) => plan.usage.get(k) || 0;
+    const used = (k) => plan.usage.get(FAMILY[k] ?? k) || 0;
     const ways = [...byKind.values()];
     if (depth <= 1 && plan.landmarksLeft > 0 && allow.has('touch')) ways.push({ kinds: ['touch'], cells: null });
     const broadest = (way) => (way.cells ? Math.max(...way.cells.map((i) => way.broad.get(i))) : 1);
@@ -459,7 +483,7 @@ function placeSimply(R, zones, zoneLand, zoneRound, group, round, rng, wants, pl
     const least = Math.min(...ways.map(cost));
     const fresh = ways.filter((way) => cost(way) <= least + 1e-9);
     const way = fresh.length ? fresh[(rng() * fresh.length) | 0] : null;
-    for (const k of way?.kinds ?? []) plan.usage.set(k, used(k) + 1);
+    for (const k of way?.kinds ?? []) plan.usage.set(FAMILY[k] ?? k, used(k) + 1);
     const kind = way?.cells ? 'board' : way ? 'touch' : null;
 
     if (kind === 'board') {
@@ -508,9 +532,14 @@ function placeLandmarks(R, zones, animals, count, rng, wants = []) {
     const options = [];
     for (let i = 0; i < R.cells; i++) {
       const z = zones.zoneOf[i];
-      if (manhattan(R, i, want.cell) !== 1) continue;
       if (answers.has(i) || used.has(z) || zones.zoneCells[z].length < 4) continue;
       if (placed.some((l) => manhattan(R, l.cell, i) < 2)) continue;
+      // "the tree is in my land": anywhere in the animal's land but its own square
+      if (want.inLand != null) {
+        if (z === want.inLand) options.push(i);
+        continue;
+      }
+      if (manhattan(R, i, want.cell) !== 1) continue;
       const near = want.cands.filter((j) => j !== want.cell && manhattan(R, i, j) === 1);
       if (want.where) {
         if (near.length + 1 < want.floor || near.some((j) => want.where.has(j))) continue;
@@ -729,12 +758,22 @@ function chooseClues(cand, pool, ctx, work, subs, spec, spent, rng, want = null,
   };
   const leans = (cl) => cl.b >= 0 && subs.includes(cl.b);
   const usedAlready = (cl, shown) =>
-    shown.filter((c) => c.k === cl.k && c.a !== cl.a).length + (spent.get(cl.k) || 0);
+    shown.filter((c) => c.k === cl.k && c.a !== cl.a).length + (spent.get(cl.k) || 0) + kin(cl, shown);
+  // The same family said again -- "I'm on the board's edge" after "I'm in a
+  // corner of the board" -- costs less than the same kind, but it costs:
+  // most within the deal, on the same card most of all, and a little for
+  // every time the level has said it before.
+  const kin = (cl, shown) => {
+    const fam = FAMILY[cl.k];
+    const near = shown.filter((c) => FAMILY[c.k] === fam && c.k !== cl.k);
+    const sameCard = near.filter((c) => c.a === cl.a).length;
+    return 0.9 * near.length + 0.9 * sameCard + 0.35 * (spent.get(`family:${fam}`) || 0);
+  };
 
   // Kinds the deal and the level have said already, weighed as below.
   const weight = (cl, shown) => {
     const inDeal = shown.filter((c) => c.k === cl.k && c.a !== cl.a).length;
-    return 0.12 * (RANK[cl.k] ?? 6) + 1.5 * inDeal + 0.6 * (spent.get(cl.k) || 0);
+    return 0.12 * (RANK[cl.k] ?? 6) + 1.5 * inDeal + 0.6 * (spent.get(cl.k) || 0) + kin(cl, shown);
   };
 
   // Standing alone with depth, every card is a small puzzle of its own, and
@@ -768,8 +807,20 @@ function chooseClues(cand, pool, ctx, work, subs, spec, spent, rng, want = null,
         }
         // plain and fresh first, then broad: the sharper fact of the set
         // leaving more squares is worth about as much as a repeated kind
-        const broad = Math.min(...set.map((cl) => where.get(cl).size));
-        const cost = set.reduce((s, cl) => s + weight(cl, out), 0) - 1.2 * Math.log2(broad) + rng() * 0.3;
+        // and the first fact read should leave several squares, not just enough
+        const sizes = set.map((cl) => where.get(cl).size);
+        const broad = Math.min(...sizes);
+        const first = Math.max(...sizes);
+        const shown = [...out];
+        const cost =
+          set.reduce((s, cl) => {
+            const w = weight(cl, shown);
+            shown.push(cl);
+            return s + w;
+          }, 0) -
+          1.2 * Math.log2(broad) -
+          0.5 * Math.log2(first) +
+          rng() * 0.3;
         if (cost < bestCost) {
           bestCost = cost;
           best = set;
@@ -816,7 +867,7 @@ function chooseClues(cand, pool, ctx, work, subs, spec, spent, rng, want = null,
       // another animal of this deal costs a lot, and earlier in the level less.
       const folds = chosen.some((c) => c.a === cl.a && c.k === cl.k);
       const inDeal = chosen.filter((c) => c.k === cl.k && c.a !== cl.a).length;
-      const repeat = folds ? 0.85 : 1 + 1.5 * inDeal + 0.6 * (spent.get(cl.k) || 0);
+      const repeat = folds ? 0.85 : 1 + 1.5 * inDeal + 0.6 * (spent.get(cl.k) || 0) + 0.7 * kin(cl, chosen);
       const lean = leans(cl) ? 1.5 : 0;
       // with depth, a broad fact is worth a little more progress than a sharp one
       const broad = depth > 1 ? Math.pow(broadness(cl), -0.6) : 1;
@@ -876,8 +927,28 @@ function chooseClues(cand, pool, ctx, work, subs, spec, spent, rng, want = null,
     }
   }
 
-  for (const cl of [...kept, ...extras]) spent.set(cl.k, (spent.get(cl.k) || 0) + 1);
-  return { clues: [...kept, ...extras], spare: extras.length };
+  for (const cl of [...kept, ...extras]) {
+    spent.set(cl.k, (spent.get(cl.k) || 0) + 1);
+    const fam = `family:${FAMILY[cl.k]}`;
+    spent.set(fam, (spent.get(fam) || 0) + 1);
+  }
+  return { clues: readingOrder([...kept, ...extras], cand, ctx, work, subs), spare: extras.length };
+}
+
+/**
+ * The order a card's sentences are read in: broadest first. A card that says
+ * "I'm on the board's edge. I'm next to Ocean." reads the way the player
+ * works -- several squares, then the one of them that fits -- where the other
+ * way round names the answer and then confirms it. Only the order changes,
+ * never what is said.
+ */
+export function readingOrder(clues, cand, ctx, work, subs) {
+  return subs.flatMap((a, k) =>
+    ideas(clues.filter((cl) => cl.a === a))
+      .map((idea) => ({ idea, left: sentenceReach(idea, cand, ctx, work, subs)[k] }))
+      .sort((x, y) => y.left - x.left)
+      .flatMap((x) => x.idea)
+  );
 }
 
 // --- one whole level -------------------------------------------------------
@@ -907,7 +978,7 @@ function attempt(R, rng, spec) {
   // never builds.
   const depth = spec.depth ?? 1;
   const planned = spec.tier === 0 && (spec.perCard === 1 || depth > 1);
-  const allowed = new Set(kindsFor(spec.vocab, spec.coords));
+  const allowed = new Set(allowedKinds(spec));
   const wants = []; // animals a landmark should pick out
   const plan = { usage: new Map(), landmarksLeft: spec.landmarks ?? 0 };
   // With animals leaning on each other and a set number of starting points,
@@ -945,7 +1016,7 @@ function attempt(R, rng, spec) {
   const blocked = new Set(landmarks.map((l) => l.cell));
   const ctx = boardContext({ R, zones, zoneLand, lands, animals, landmarks });
   const solution = Int32Array.from(animals, (a) => a.cell);
-  const kinds = kindsFor(spec.vocab, spec.coords);
+  const kinds = allowedKinds(spec);
 
   // what each animal of deal r could legally take, with these squares blocked
   const candidatesAt = (r, subs, blockedCells) =>

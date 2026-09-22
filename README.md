@@ -40,15 +40,19 @@ person, playtested and locked in — the game never makes up a board of its own.
 Every level is open from the start; they are meant to be played in order, and
 the level list ticks off the ones finished.
 
-There are sixteen, arranged as a funnel. The first four are small and every
-card is one short, positive fact — *I'm in a corner of the board*, *I'm next to
-the tent*. The very first deals one card at a time: read one sentence, place
-one animal. The second deals two at a time, and the third two where one card
-leans on the other — *I'm next to the shark* — the whole idea of the game in
-its smallest form. The fourth deals three, each standing alone. Then depth arrives:
-two facts to a card, neither of which says where the animal is by itself —
-*I'm on the board's edge. I'm next to Ocean.* — first in the same simple words,
-then vaguer ones. Then animals start to lean on one another: two of a deal
+There are fifteen, arranged as a funnel. From the very first level every card
+is two short, positive facts, neither of which says where the animal is by
+itself: the first leaves several squares, the second cuts them to one — *I'm in
+the board's top half. I'm next to Desert.* That is the whole game, and it
+starts on the first card. (An earlier version opened with one fact to a card,
+and players found it a run of corners and edges each pointing at one square,
+with nothing to work out.)
+
+The first level deals one card at a time; the second two at a time; the third
+two where one card leans on the other — *I'm next to the pig* — which only
+narrows once the pig is down. The fourth deals three, each standing alone
+again, and the fifth brings "not" and vaguer facts. Then animals lean on one
+another in earnest: two of a deal
 still found from their own card and the third through them, then deals that
 bring two animals of one colour, then fewer starting points, then all together,
 while the clues widen to rows, columns and distances and each sentence gives
@@ -157,9 +161,14 @@ A level that says the same kind of thing over and over is a level with one idea
 in it. The generator weighs repetition heavily when it picks clues — most of all
 within a deal, where repeats sit side by side — and the editor shows what each
 level says most often, so a repetitive one can be rerolled before it is locked
-in. No starter level uses any kind of sentence more than twice, bar level 5:
-twelve sentences made from the five simple kinds must repeat one of them three
-times.
+in. No starter level uses any kind of sentence more than twice.
+
+Repetition is weighed by family as well as by kind. "I'm on the board's edge",
+"I'm on the board's top edge" and "I'm in a corner of the board" are three kinds
+to the solver and one thing to a reader — where the animal sits against the
+rim — so a level that says them one after another reads as the same sentence
+three times. The families are edges, "next to", whole lands, areas of the
+board, rows and lines, and distances.
 
 Clues are only ever about one or two fixed squares — never a tally of who is
 nearby. Animals arrive over several deals, so "nothing is next to me" would be
@@ -172,10 +181,10 @@ the end.
 Difficulty has several sides, and the first is how quickly a clue can be read
 and understood. Clues come in four rungs, each adding to the one before:
 
-- **Simple** — one plain, positive fact you can see: a corner, edge or the
-  middle of the board, what the animal is next to, a landmark standing in its
-  land. *I'm in a corner of the board. The tree is in my land.* No "not",
-  nothing to compare.
+- **Simple** — one plain, positive fact you can see: a corner, edge, half or
+  the middle of the board, what the animal is next to (another land, a colour,
+  a landmark), a landmark standing in its land. *I'm in the board's top half.
+  The tree is in my land.* No "not", nothing to compare.
 - **Plain** — adds "not" and whole-land facts: the biggest or smallest land,
   being surrounded by your own land, how many lands you're next to, what your
   land borders, whether it reaches the board's edge. Still one fact to a
@@ -186,13 +195,18 @@ and understood. Clues come in four rungs, each adding to the one before:
   sizes and bordering lands.
 
 At the first two rungs a card is limited in facts, not sentences, and nothing is
-folded into a compound: the first levels carry one fact per card, averaging
-under six words. For those levels the animals are placed where one such fact
-picks them out — the only corner of their colour, the only square beside
-Desert — or beside a landmark placed so that "I'm next to the tree" does. When
-animals stand alone with depth, the same is done with two facts: each animal
-goes where two broad ones meet — the one square on the board's right edge that
-is also next to Ocean.
+folded into a compound. When animals stand alone, each is placed where two
+broad facts meet — the one square in the board's top half that is also next to
+Desert — or where one board fact meets a landmark set down to suit it, beside
+the animal or inside its land ("The tree is in my land").
+
+Halves count as simple — on even boards. On an odd board the middle row belongs
+to neither half, which is exact but not something a first level should ask
+anyone to know, so there halves wait for the Lines rung.
+
+A card's sentences are read broadest first: *I'm in the board's top half* (a
+dozen squares) and then *I'm next to Desert* (one of them). That is the order a
+player works in; the other way round names the answer and then confirms it.
 
 ## How much the clues lean on each other
 
@@ -288,11 +302,11 @@ The difficulty score puts these together per deal: its size, weighted up for
 every extra fact an animal needs, every extra round, every missing starting
 point and each step of leaning. The old score grew only with the board, so on
 paper the last levels were harder while in play the reasoning had stopped
-growing at level 9. The sixteen levels score 2, 3, 6, 5, 6, 6, 7, 11, 13, 19,
-21, 31, 33, 44, 60 and 66 — no step more than about half again the one before,
-bar level 3, where the first card that leans on another scores above the
-three standing-alone cards of level 4 — and the starter script refuses to jump
-further than that when it can help it.
+growing at level 9. The fifteen levels score 3, 5, 9, 6, 6, 7, 11, 13, 19, 21,
+31, 33, 44, 60 and 66 — no step more than about half again the one before, and
+only one dip: level 3, the first card that leans on another, scores above the
+standing-alone levels 4 and 5 that follow it. The starter script refuses to
+jump further than that when it can help it.
 
 ## You never have to guess
 

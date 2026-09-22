@@ -126,12 +126,15 @@ export const COORDS = ['inRow', 'inColumn'];
  * which is the tier (deduce.js). The other is how fast it can be read and
  * understood, and that is what this ladder is for.
  *
- * Simple is one plain, positive fact you can see: a corner or an edge of the
- * board, the middle of it, what the animal is next to, a landmark standing in
- * its land. No "not", no comparing, nothing that has to be held in the head
- * while something else is checked. Plain adds the negatives and whole-land
- * facts (biggest, surrounded, what the land borders, whether it reaches the
- * board's edge) -- still one fact to a sentence: at these two rungs a card is
+ * Simple is one plain, positive fact you can see: a corner, edge or half of
+ * the board, the middle of it, what the animal is next to, a landmark standing
+ * in its land. (Halves only on even boards at the first two rungs: on an odd
+ * board the middle row belongs to neither half, which is exact but not
+ * something a first level should ask anyone to know.) No "not", no comparing,
+ * nothing that has to be held in the head while something else is checked.
+ * Plain adds the negatives and whole-land facts (biggest, surrounded, what the
+ * land borders, whether it reaches the board's edge) -- still one fact to a
+ * sentence: at these two rungs a card is
  * limited in facts, and nothing is folded into a compound. Lines adds
  * relationships along rows and columns, which ask you to trace across the
  * board, "or", and lets facts fold together ("on the board's edge, but not the
@@ -146,8 +149,8 @@ export const COORDS = ['inRow', 'inColumn'];
 export const VOCABULARY = [
   {
     name: 'Simple',
-    blurb: 'one plain fact: a corner, edge or the middle of the board, what an animal is next to, a landmark in its land',
-    kinds: ['corner', 'side', 'rim', 'nearLand', 'touch', 'markInLand', 'middle'],
+    blurb: 'one plain fact: a corner, edge, half or the middle of the board, what an animal is next to, a landmark in its land',
+    kinds: ['corner', 'side', 'rim', 'nearLand', 'touch', 'zoneEdge', 'markInLand', 'middle', 'top', 'bottom', 'left', 'right'],
   },
   {
     name: 'Plain',
@@ -157,7 +160,6 @@ export const VOCABULARY = [
       'notSide',
       'inland',
       'notNearLand',
-      'zoneEdge',
       'zoneCore',
       'biggest',
       'smallest',
@@ -172,7 +174,7 @@ export const VOCABULARY = [
   },
   {
     name: 'Lines',
-    blurb: 'adds rows, columns, above/below, left/right, halves, diagonals, “or”, and sentences that combine facts',
+    blurb: 'adds rows, columns, above/below, left/right, diagonals, “or”, and sentences that combine facts',
     kinds: [
       'diagonal',
       'eitherTouch',
@@ -186,10 +188,6 @@ export const VOCABULARY = [
       'rightOf',
       'corners',
       'notCorners',
-      'top',
-      'bottom',
-      'left',
-      'right',
     ],
   },
   {
@@ -198,6 +196,26 @@ export const VOCABULARY = [
     kinds: ['steps', 'zoneTouch', 'closer', 'landSize'],
   },
 ];
+
+/**
+ * Kinds that read as the same sort of thing to a player. "I'm on the board's
+ * edge", "I'm on the board's top edge" and "I'm in a corner of the board" are
+ * three kinds to the solver and one idea to the reader -- where the animal
+ * sits against the board's rim -- and a level that says them one after
+ * another reads as the same sentence three times. The generator weighs
+ * repetition by family as well as by kind.
+ */
+export const FAMILY = {
+  rim: 'edge', inland: 'edge', corner: 'edge', notCorner: 'edge', side: 'edge', notSide: 'edge',
+  touch: 'next', notTouch: 'next', nearLand: 'next', notNearLand: 'next', eitherTouch: 'next',
+  zoneEdge: 'next', landsAround: 'next', corners: 'next', notCorners: 'next',
+  markInLand: 'land', noMarkInLand: 'land', landBorders: 'land', landRim: 'land', landInland: 'land',
+  landSize: 'land', biggest: 'land', smallest: 'land', notBiggest: 'land', zoneCore: 'land', zoneTouch: 'land',
+  middle: 'area', diagonal: 'area', top: 'area', bottom: 'area', left: 'area', right: 'area',
+  sameRow: 'line', notSameRow: 'line', sameCol: 'line', notSameCol: 'line',
+  above: 'line', below: 'line', leftOf: 'line', rightOf: 'line', inRow: 'line', inColumn: 'line',
+  steps: 'distance', closer: 'distance',
+};
 
 /** Every kind allowed at a vocabulary step, plus coordinates if asked for. */
 export function kindsFor(vocab, coords = false) {

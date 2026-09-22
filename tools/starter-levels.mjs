@@ -5,8 +5,8 @@
 // re-measured; the rest are rebuilt. For each step
 // it generates up to thirty candidates, keeps only those that need the step's
 // tier (a step introducing "in turn" must actually need it), prefers ones whose
-// two-of-a-colour deals actually need both lands, never dips below the previous
-// level's difficulty or climbs more than half again above it (if it can help
+// two-of-a-colour deals actually need both lands, doesn't dip below the previous
+// level's difficulty or climb more than half again above it (if it can help
 // it), then picks the most varied: fewest repeats of any one kind of sentence,
 // then the fewest "not"s, then the most kinds. Deterministic seeds, so a
 // rerun gives the same levels until the generator changes.
@@ -16,19 +16,22 @@
 // Level ids are random, so a rebuilt level gets a new id, and players lose their
 // progress on it (progress is kept by id).
 //
-//   node tools/starter-levels.mjs [keep]      e.g. 1-4 (the default), 4-14, 1,2,5
+//   node tools/starter-levels.mjs [keep]      e.g. 1-4 (the default), 4-14, 6-13:7
 import fs from 'node:fs';
-import { makeLevel } from '../src/generate.js';
+import { makeLevel, readingOrder } from '../src/generate.js';
 import { FUNNEL } from '../src/funnel.js';
-import { serializeLevel, formatBook, emptyBook, measure, puzzleFromLevel } from '../src/levels.js';
+import { candidates, serializeLevel, formatBook, emptyBook, measure, puzzleFromLevel } from '../src/levels.js';
 import { chunks, VOCABULARY } from '../src/clues.js';
 import { makeRules, mulberry32 } from '../src/util.js';
 
-// which level numbers to keep, from "1-4" or "1,2,5"
-const KEEP = new Set(
+// Which levels to keep, as new position -> old position: "1-4" keeps levels 1-4
+// where they are, "6-13:7" puts old levels 7-14 at 6-13.
+const KEEP = new Map(
   (process.argv[2] ?? '1-4').split(',').flatMap((part) => {
-    const [a, b = a] = part.split('-').map(Number);
-    return Array.from({ length: b - a + 1 }, (_, k) => a + k);
+    const [range, from] = part.split(':');
+    const [a, b = a] = range.split('-').map(Number);
+    const start = from ? Number(from) : a;
+    return Array.from({ length: b - a + 1 }, (_, k) => [a + k, start + k]);
   })
 );
 const file = new URL('../levels/levels.json', import.meta.url);
@@ -36,11 +39,20 @@ const old = fs.existsSync(file) ? JSON.parse(fs.readFileSync(file, 'utf8')) : em
 const book = emptyBook();
 let floor = 0;
 FUNNEL.forEach((spec, step) => {
-  if (KEEP.has(step + 1) && old.levels[step]) {
-    const lv = { ...old.levels[step], stats: measure(puzzleFromLevel(old.levels[step])) };
+  const source = old.levels[(KEEP.get(step + 1) ?? 0) - 1];
+  if (KEEP.has(step + 1) && source) {
+    // same board, same id; only the sentences on each card put broadest first
+    const p = puzzleFromLevel(source);
+    const pos = Int32Array.from(p.animals, (a) => a.cell);
+    const deals = source.deals.map((d, r) => ({
+      ...d,
+      clues: readingOrder(d.clues, candidates(p, p.deals[r]), p.ctx, pos, d.animals),
+    }));
+    const lv = { ...source, deals };
+    lv.stats = measure(puzzleFromLevel(lv));
     book.levels.push(lv);
     floor = lv.stats.difficulty;
-    console.log(`level ${String(step + 1).padStart(2)}: kept as it was (difficulty ${lv.stats.difficulty})`);
+    console.log(`level ${String(step + 1).padStart(2)}: kept, was level ${KEEP.get(step + 1)} (difficulty ${lv.stats.difficulty})`);
     return;
   }
   const built = [];
@@ -49,8 +61,14 @@ FUNNEL.forEach((spec, step) => {
     const p = makeLevel(makeRules(spec.N), spec, mulberry32(seed));
     if (!p) continue;
     const lv = serializeLevel(p, { seed });
-    if (!lv.stats.coords && lv.stats.difficulty >= floor) built.push(lv);
+    if (!lv.stats.coords) built.push(lv);
   }
+  // no easier than the level before, if it can help it -- a step that goes back
+  // to cards standing alone after one where they leaned may not be able to,
+  // and then the hardest of what was built is the smallest dip
+  const up = built.filter((lv) => lv.stats.difficulty >= floor);
+  if (up.length) built.splice(0, built.length, ...up);
+  else built.sort((x, y) => y.stats.difficulty - x.stats.difficulty).splice(3);
   // a step that introduces a tier must actually need it, or it teaches nothing
   const needing = built.filter((lv) => lv.stats.tier === spec.tier);
   if (needing.length) built.splice(0, built.length, ...needing);
