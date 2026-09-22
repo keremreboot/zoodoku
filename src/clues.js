@@ -127,7 +127,7 @@ export const COORDS = ['inRow', 'inColumn'];
  * understood, and that is what this ladder is for.
  *
  * Simple is one plain, positive fact you can see: a corner, edge or half of
- * the board, the middle of it, what the animal is next to, a landmark standing
+ * the board, the block at its centre, what the animal is next to, a landmark standing
  * in its land. (Halves only on even boards at the first two rungs: on an odd
  * board the middle row belongs to neither half, which is exact but not
  * something a first level should ask anyone to know.) No "not", no comparing,
@@ -149,7 +149,7 @@ export const COORDS = ['inRow', 'inColumn'];
 export const VOCABULARY = [
   {
     name: 'Simple',
-    blurb: 'one plain fact: a corner, edge, half or the middle of the board, what an animal is next to, a landmark in its land',
+    blurb: 'one plain fact: a corner, edge or half of the board or the block at its centre, what an animal is next to, a landmark in its land',
     kinds: ['corner', 'side', 'rim', 'nearLand', 'touch', 'zoneEdge', 'markInLand', 'middle', 'top', 'bottom', 'left', 'right'],
   },
   {
@@ -568,8 +568,13 @@ function one(cl, ctx) {
       return `I'm in column ${cl.n + 1}.`;
     case 'steps':
       return `I'm ${cl.n} steps from ${target(cl, ctx)}.`;
-    case 'middle':
-      return "I'm in the middle of the board.";
+    // Named by its size, not "the middle": players read "middle" as the middle
+    // row, or as something the board's halves split, and "I'm in the middle of
+    // the board. I'm in the board's bottom half." as a contradiction.
+    case 'middle': {
+      const side = ctx.R.N - 4;
+      return side <= 1 ? "I'm in the board's centre square." : `I'm in the board's centre ${side} × ${side}.`;
+    }
     case 'diagonal':
       return "I'm on one of the board's diagonals.";
     case 'landRim':
@@ -821,8 +826,8 @@ export const GLOSSARY = [
   },
   {
     kinds: ['middle'],
-    say: "I'm in the middle of the board.",
-    means: 'Two or more squares in from every edge of the board — the middle four squares of a 6 × 6 board, the middle nine of a 7 × 7.',
+    say: "I'm in the board's centre 2 × 2. (Or 3 × 3, and so on.)",
+    means: "The block of squares at the very centre of the board, two or more squares in from every edge: 2 × 2 on a 6 × 6 board, 3 × 3 on a 7 × 7, and so on. On a 5 × 5 board, the one centre square.",
   },
   {
     kinds: ['diagonal'],

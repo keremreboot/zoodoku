@@ -48,7 +48,7 @@ const SAID = {
   left: 'half of the board', right: 'half of the board', zoneEdge: 'next to another land',
   zoneCore: 'surrounded', nearLand: 'next to a colour', notNearLand: 'not next to a colour',
   biggest: 'biggest', smallest: 'smallest', notBiggest: 'not biggest', inRow: 'row', inColumn: 'column',
-  middle: 'middle of the board', diagonal: 'board diagonal', landRim: 'land touches the edge',
+  middle: 'centre of the board', diagonal: 'board diagonal', landRim: 'land touches the edge',
   landInland: 'land inland', noMarkInLand: 'no landmark in land', landsAround: 'next to other lands',
   landBorders: 'land borders a colour', landSize: 'land size', markInLand: 'landmark in land',
   closer: 'closer than', eitherTouch: 'next to this or that',

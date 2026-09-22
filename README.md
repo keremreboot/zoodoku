@@ -41,8 +41,8 @@ Every level is open from the start; they are meant to be played in order, and
 the level list ticks off the ones finished.
 
 There are seventeen, arranged as a funnel. The first two are a doorway: one
-short, positive fact to a card — *I'm in the middle of the board*, *I'm next to
-the mushroom* — one card at a time and then two, so the rules can be learned
+short, positive fact to a card — *I'm in the board's centre square*, *I'm next
+to the mushroom* — one card at a time and then two, so the rules can be learned
 before anything has to be worked out.
 
 From level 3 every card is two short, positive facts, neither of which says
@@ -106,7 +106,7 @@ shows the same list word for word:
 | I'm (not) next to Desert. | A side-neighbour is (none is) in a Desert land. Only other colours are named. |
 | I'm next to the 🌳 tree or the fox. | Next to at least one of the two — maybe both. |
 | I'm closer to the 🌳 tree than to the fox. | Fewer steps to the first than the second. The same number of steps is not closer. |
-| I'm in the middle of the board. | Two or more squares in from every edge — the middle four of a 6 × 6. |
+| I'm in the board's centre 2 × 2. | The block at the very centre, two or more squares in from every edge: 2 × 2 on a 6 × 6, 3 × 3 on a 7 × 7; on a 5 × 5 the centre square. Named by its size because "the middle of the board" read as the middle row. |
 | I'm on one of the board's diagonals. | The two corner-to-corner lines. |
 | I'm next to two (three) other lands. | Side-neighbours lie in exactly two (three) lands besides mine. |
 | The 🌳 tree is in my land. | The landmark stands inside my land's heavy lines. Or *no landmark is in my land*. |
@@ -185,8 +185,8 @@ the end.
 Difficulty has several sides, and the first is how quickly a clue can be read
 and understood. Clues come in four rungs, each adding to the one before:
 
-- **Simple** — one plain, positive fact you can see: a corner, edge, half or
-  the middle of the board, what the animal is next to (another land, a colour,
+- **Simple** — one plain, positive fact you can see: a corner, edge or half of
+  the board or the block at its centre, what the animal is next to (another land, a colour,
   a landmark), a landmark standing in its land. *I'm in the board's top half.
   The tree is in my land.* No "not", nothing to compare.
 - **Plain** — adds "not" and whole-land facts: the biggest or smallest land,

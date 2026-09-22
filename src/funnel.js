@@ -15,7 +15,7 @@
 //   - after them, every card is two short, positive facts,
 //     neither of which says where the animal is on its own: the first leaves
 //     several squares, the second cuts them to one -- "I'm in the board's top
-//     half. I'm in the middle of the board." Players said one-fact cards were
+//     half. I'm next to Desert." Players said one-fact cards were
 //     corners and edges pointing at single squares, with nothing to work out;
 //   - the first level deals one card at a time; then two at a time; then two
 //     where one card leans on the other -- "I'm next to the fox" -- the whole

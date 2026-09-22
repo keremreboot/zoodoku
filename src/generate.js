@@ -437,6 +437,7 @@ function placeSimply(R, zones, zoneLand, zoneRound, group, round, rng, wants, pl
           for (let y = x + 1; y < mine.length; y++) {
             const [f, g] = [mine[x], mine[y]];
             if (sentenceCount([f.fact, g.fact]) !== 2) continue; // would fold into one sharp sentence
+            if (FAMILY[f.fact.k] === 'area' && FAMILY[g.fact.k] === 'area') continue; // see cardFits
             if ([...f.where].some((j) => j !== i && g.where.has(j))) continue;
             note([f.fact.k, g.fact.k].sort(), i, null, Math.min(f.where.size, g.where.size));
           }
@@ -754,6 +755,9 @@ function chooseClues(cand, pool, ctx, work, subs, spec, spent, rng, want = null,
       ? card.length <= perCard && sentenceCount(card) === card.length
       : sentenceCount(card) <= perCard && longestList(card) <= 2;
     if (!fits || !deep(card)) return false;
+    // two areas of the board on one card -- the centre and a half -- are one
+    // small region said in two overlapping pieces, and read as a contradiction
+    if (card.filter((c) => FAMILY[c.k] === 'area').length > 1) return false;
     return target == null || anchored.has(cl.a) || !pinsAlone(card, cl.a);
   };
   const leans = (cl) => cl.b >= 0 && subs.includes(cl.b);
