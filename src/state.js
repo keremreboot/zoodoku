@@ -10,10 +10,10 @@
 // Everything else is judged, and judged at once. A drop on a legal square that
 // is not the animal's own costs a strike and the animal stays in hand. That is
 // only fair because of what the generator guarantees: every deal has exactly one
-// arrangement its clues allow, and all three cards are on the table before
+// arrangement its clues allow, and all of a deal's cards are on the table before
 // anything is placed. So a wrong square is never bad luck -- the information to
 // rule it out was there -- and comparing against the answer is the same test as
-// checking the clues, just without the wait for the third animal.
+// checking the clues, just without the wait for the last animal.
 //
 // It also means every animal on the board is exactly where it belongs, so a
 // placed animal is locked the moment it lands, and there is nothing to undo.
@@ -42,7 +42,7 @@ export class Game {
     return this.puzzle.deals[this.round] ?? null;
   }
 
-  /** The three animals of the current deal, in a stable colour order. */
+  /** The animals of the current deal -- one to four -- in a stable colour order. */
   get hand() {
     const deal = this.deal;
     return deal ? deal.animals.map((id) => this.animals[id]) : [];
@@ -110,7 +110,7 @@ export class Game {
     return this.hand.filter((a) => this.isPlaced(a.id)).length;
   }
 
-  /** Move on to the next deal once all three are down. Returns whether it did. */
+  /** Move on to the next deal once all of this one is down. Returns whether it did. */
   settle() {
     if (!this.deal || this.handPlaced() < this.deal.animals.length) return false;
     this.round++;

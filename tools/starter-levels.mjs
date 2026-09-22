@@ -1,7 +1,8 @@
 // Rebuild the starter levels: one per funnel step, overwriting levels/levels.json.
 //
-// The first KEEP levels are copied from the current file untouched -- same
-// boards, same ids -- and only re-measured; the rest are rebuilt. For each step
+// The levels named on the command line are copied from the current file
+// untouched, at the same position -- same boards, same ids -- and only
+// re-measured; the rest are rebuilt. For each step
 // it generates up to thirty candidates, keeps only those that need the step's
 // tier (a step introducing "in turn" must actually need it), prefers ones whose
 // two-of-a-colour deals actually need both lands, never dips below the previous
@@ -15,7 +16,7 @@
 // Level ids are random, so a rebuilt level gets a new id, and players lose their
 // progress on it (progress is kept by id).
 //
-//   node tools/starter-levels.mjs [keep]      keep defaults to 4
+//   node tools/starter-levels.mjs [keep]      e.g. 1-4 (the default), 4-14, 1,2,5
 import fs from 'node:fs';
 import { makeLevel } from '../src/generate.js';
 import { FUNNEL } from '../src/funnel.js';
@@ -23,13 +24,19 @@ import { serializeLevel, formatBook, emptyBook, measure, puzzleFromLevel } from 
 import { chunks, VOCABULARY } from '../src/clues.js';
 import { makeRules, mulberry32 } from '../src/util.js';
 
-const KEEP = Number(process.argv[2] ?? 4);
+// which level numbers to keep, from "1-4" or "1,2,5"
+const KEEP = new Set(
+  (process.argv[2] ?? '1-4').split(',').flatMap((part) => {
+    const [a, b = a] = part.split('-').map(Number);
+    return Array.from({ length: b - a + 1 }, (_, k) => a + k);
+  })
+);
 const file = new URL('../levels/levels.json', import.meta.url);
 const old = fs.existsSync(file) ? JSON.parse(fs.readFileSync(file, 'utf8')) : emptyBook();
 const book = emptyBook();
 let floor = 0;
 FUNNEL.forEach((spec, step) => {
-  if (step < KEEP && old.levels[step]) {
+  if (KEEP.has(step + 1) && old.levels[step]) {
     const lv = { ...old.levels[step], stats: measure(puzzleFromLevel(old.levels[step])) };
     book.levels.push(lv);
     floor = lv.stats.difficulty;

@@ -1,11 +1,11 @@
 # Zoodoku
 
-Three animals arrive at once, usually one of each colour, and each may only be
+Animals arrive a few at a time — one, two, three or four — and each may only be
 settled in a land of its own colour. That alone leaves them dozens of squares
 to choose between. What settles it is what they say — *I'm next to the tree*,
 *I'm in the biggest Meadow*, *I'm not on the board's top edge*, *I'm next to the
 fish and the lion* — and every deal is built so that exactly one arrangement of
-the three can be true, and can be found without a single guess.
+its animals can be true, and can be found without a single guess.
 
 Deals keep coming until every land has its animal. Levels get harder as you go.
 
@@ -17,12 +17,12 @@ Deals keep coming until every land has its animal. Levels get harder as you go.
 - A land holds one animal and no more. Once it has one, the rest of the land is
   crossed out.
 - Nothing stands on a landmark — the 🌳 tree, the ⛺ tent and the rest.
-- Every clue on the three cards must end up true.
+- Every clue on the deal's cards must end up true.
 - A wrong square costs a strike, and the animal stays in hand. Five strikes and
   the level starts over — the same level, not a new one.
 
 Every placement is judged the moment it lands. That is fair only because of how
-deals are built: all three cards are on the table before anything is placed,
+deals are built: all of a deal's cards are on the table before anything is placed,
 and every deal can be solved from them by elimination alone, so every wrong
 square could have been ruled out before you committed to it. A strike is never
 bad luck.
@@ -40,16 +40,29 @@ person, playtested and locked in — the game never makes up a board of its own.
 Every level is open from the start; they are meant to be played in order, and
 the level list ticks off the ones finished.
 
-There are fifteen, arranged as a funnel. The first four are small, every card
-is one short, positive fact — *I'm in a corner of the board*, *I'm next to the
-tent* — and every animal can be placed from its own card. Then depth arrives:
+There are sixteen, arranged as a funnel. The first four are small and every
+card is one short, positive fact — *I'm in a corner of the board*, *I'm next to
+the tent*. The very first deals one card at a time: read one sentence, place
+one animal. The second deals two at a time, and the third two where one card
+leans on the other — *I'm next to the shark* — the whole idea of the game in
+its smallest form. The fourth deals three, each standing alone. Then depth arrives:
 two facts to a card, neither of which says where the animal is by itself —
 *I'm on the board's edge. I'm next to Ocean.* — first in the same simple words,
 then vaguer ones. Then animals start to lean on one another: two of a deal
 still found from their own card and the third through them, then deals that
 bring two animals of one colour, then fewer starting points, then all together,
 while the clues widen to rows, columns and distances and each sentence gives
-away less. The last level's final deals have no starting point at all.
+away less. The last two levels deal four at a time — with three colours, always
+two of one — and the last one's final deal has no starting point at all.
+
+### How many at a time
+
+A deal can bring one, two, three or four animals, and that is a dial of its
+own. One card is nothing to hold in the head but itself; four is four
+sentences, leaning on each other, all at once. Early levels keep deals small so
+a new player meets one idea at a time; the last levels make them big. A deal
+of up to three is one animal of each colour; a deal of four doubles one colour,
+so "a land takes one animal" always has something to say in it.
 
 Players said the difficulty jumped too suddenly, so the funnel turns one dial
 at a time and is checked with numbers (see *Measuring difficulty*): no level
@@ -183,7 +196,7 @@ is also next to Ocean.
 
 ## How much the clues lean on each other
 
-The second side is how much a deal's three animals depend on one another's
+The second side is how much a deal's animals depend on one another's
 cards:
 
 - **Alone** — each animal can be placed from its own card. It may mention an
@@ -275,9 +288,11 @@ The difficulty score puts these together per deal: its size, weighted up for
 every extra fact an animal needs, every extra round, every missing starting
 point and each step of leaning. The old score grew only with the board, so on
 paper the last levels were harder while in play the reasoning had stopped
-growing at level 9. The fifteen levels score 2, 2, 3, 5, 6, 6, 7, 11, 13, 19,
-21, 31, 33, 44 and 52 — no step more than about half again the one before — and
-the starter script refuses to jump further than that when it can help it.
+growing at level 9. The sixteen levels score 2, 3, 6, 5, 6, 6, 7, 11, 13, 19,
+21, 31, 33, 44, 60 and 66 — no step more than about half again the one before,
+bar level 3, where the first card that leans on another scores above the
+three standing-alone cards of level 4 — and the starter script refuses to jump
+further than that when it can help it.
 
 ## You never have to guess
 
@@ -302,7 +317,7 @@ So every deal has to be solvable by elimination alone:
 5. Repeat until nothing more falls. Each animal must be left with one square.
 
 What that never allows is supposing: "if the crab were here, the rooster would
-be there, and then the owl could not…" chained through all three animals is the
+be there, and then the owl could not…" chained through all the animals is the
 guessing the rule forbids. A deal that would need it is never built.
 
 ## Making levels
@@ -316,8 +331,9 @@ then open http://localhost:8137/editor.html.
 Nothing is typed by hand. The sliders set:
 
 - **Board** — 5 × 5 up to 9 × 9.
-- **Lands** — a multiple of three (one deal takes three lands); it decides how
-  many deals the level has and how big each land is.
+- **Animals per deal** — one to four cards at a time.
+- **Lands** — a whole number of deals' worth; it decides how many deals the
+  level has and how big each land is.
 - **Clues lean on each other** — Alone, In turn or Together, as above.
 - **How easy clues are to read** — *Simple*, *Plain*, *Lines* or *Counting*,
   as above.
@@ -482,7 +498,7 @@ along every step of the funnel, it:
 - solves every deal by elimination at its level's leaning, with its **own**
   solver, separate from the generator's, and fails any deal that would need a
   guess;
-- tries every arrangement of the three animals and fails any deal with more
+- tries every arrangement of the deal's animals and fails any deal with more
   than one answer;
 - checks every clue is true of the answer and is a kind the key explains, and
   every land is whole and fairly sized;

@@ -8,7 +8,7 @@
 // Saving goes through the local dev server (npm start). Opened any other way,
 // the editor still works, and offers the file as a download instead.
 
-import { DEFAULT_SPEC, landOptions, makeLevel, maxPairs } from './generate.js';
+import { DEFAULT_SPEC, dealSizes, landOptions, makeLevel, maxPairs } from './generate.js';
 import { VOCABULARY, chunks } from './clues.js';
 import { TIERS } from './deduce.js';
 import { FUNNEL, suggestSpec } from './funnel.js';
@@ -30,7 +30,7 @@ for (const id of [
   'slot', 'suggest', 'N', 'NOut', 'lands', 'landsOut', 'tier', 'tierOut', 'tierHint',
   'vocab', 'vocabOut', 'vocabHint', 'perCard', 'perCardOut', 'spare', 'spareOut', 'coords',
   'landmarks', 'landmarksOut', 'varied', 'perCardLabel', 'depth', 'depthOut', 'depthHint',
-  'pairs', 'pairsOut', 'footholds', 'footholdsOut',
+  'pairs', 'pairsOut', 'footholds', 'footholdsOut', 'dealSize', 'dealSizeOut',
   'generate', 'playtest', 'lock', 'genStatus', 'previewTitle', 'answers', 'stage', 'stats',
   'deals', 'count', 'funnel', 'book', 'saveStatus', 'download',
 ]) {
@@ -59,6 +59,7 @@ view.crossOut = false; // answers are shown all at once; crossing out would bury
 
 let book = emptyBook();
 let footholdPlan = null; // starting points per deal, when the funnel gives a list
+let landsWanted = 6; // the land count last shown, kept when the deal size changes the options
 let candidate = null; // generated, not yet locked in
 let showing = null; // { level, at } -- at is 'candidate' or a position in the book
 let job = 0;
@@ -66,7 +67,7 @@ let job = 0;
 // --- the sliders -------------------------------------------------------------
 
 function landChoices() {
-  return landOptions(Number(ui.N.value));
+  return landOptions(Number(ui.N.value), Number(ui.dealSize.value));
 }
 
 function readSpec() {
@@ -82,13 +83,15 @@ function readSpec() {
     varied: ui.varied.checked,
     coords: ui.coords.checked,
     depth: Number(ui.depth.value),
-    pairs: Math.min(Number(ui.pairs.value), maxPairs(landChoices()[Number(ui.lands.value)])),
+    dealSize: Number(ui.dealSize.value),
+    pairs: Math.min(Number(ui.pairs.value), maxPairs(landChoices()[Number(ui.lands.value)], Number(ui.dealSize.value))),
     footholds: footholdPlan ?? (Number(ui.footholds.value) < 0 ? null : Number(ui.footholds.value)),
   };
 }
 
 function writeSliders(spec) {
   ui.N.value = String(spec.N);
+  ui.dealSize.value = String(spec.dealSize ?? 3);
   syncLandSlider(spec.lands);
   ui.tier.value = String(spec.tier);
   ui.vocab.value = String(spec.vocab);
@@ -119,7 +122,9 @@ function syncLandSlider(want) {
 function syncLabels() {
   const spec = readSpec();
   const cells = spec.N * spec.N;
-  const deals = spec.lands / 3;
+  if (spec.lands) landsWanted = spec.lands;
+  const deals = dealSizes(spec).length;
+  ui.dealSizeOut.textContent = String(spec.dealSize);
   ui.NOut.textContent = `${spec.N} × ${spec.N}`;
   ui.landsOut.textContent = `${spec.lands} · ${deals} deal${deals === 1 ? '' : 's'} · ~${Math.round(cells / spec.lands)} squares each`;
   ui.tierOut.textContent = TIERS[spec.tier].name;
@@ -137,10 +142,10 @@ function syncLabels() {
       ? 'A sentence may name the square outright — “I’m in the board’s top-left corner.”'
       : `No sentence alone leaves an animal fewer than ${spec.depth} squares, so each is found where two or more facts meet.`;
   // the pairs slider runs up to what this many deals can hold
-  const most = maxPairs(spec.lands);
+  const most = maxPairs(spec.lands, spec.dealSize);
   ui.pairs.max = String(most);
   ui.pairs.disabled = most === 0;
-  ui.pairsOut.textContent = spec.pairs ? `${spec.pairs * 2} of ${spec.lands / 3} deals` : 'none';
+  ui.pairsOut.textContent = spec.pairs ? `${spec.pairs * 2} of ${deals} deals` : spec.dealSize === 4 ? 'every deal' : 'none';
   ui.footholds.disabled = spec.tier === 0;
   ui.footholdsOut.textContent =
     spec.tier === 0
@@ -159,10 +164,14 @@ ui.footholds.addEventListener('input', () => {
   footholdPlan = null;
   syncLabels();
 });
+// a different deal size allows different land counts: keep the nearest to before
+ui.dealSize.addEventListener('input', () => {
+  syncLandSlider(landsWanted);
+  syncLabels();
+});
 ui.N.addEventListener('input', () => {
-  // keep roughly the same land size as the board grows or shrinks
-  const before = readSpec();
-  syncLandSlider(before.lands);
+  // keep the nearest land count the new board allows
+  syncLandSlider(landsWanted);
   syncLabels();
 });
 

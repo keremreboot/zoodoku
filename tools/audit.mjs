@@ -7,7 +7,8 @@
 //     (alone / in turn / together), by a solver written separately from the
 //     generator's own, so a bug in one cannot hide behind the same bug in the
 //     other;
-//   - every deal has exactly one answer, by trying every arrangement;
+//   - every deal -- one to four animals -- has exactly one answer, by trying
+//     every arrangement;
 //   - no idea, read on its own, pins an animal down further than the level's
 //     depth allows, and each deal has exactly the number of starting points
 //     -- animals their own card places -- that the level promises;
@@ -143,6 +144,40 @@ function eliminate(p, deal, cand, tier, given) {
   return open;
 }
 
+/**
+ * How many ways a deal's animals -- however many it has -- can stand on these
+ * squares, one each, with every one of these clues true; with `oneLand`, no
+ * two in the same land. Each clue is checked as soon as every animal of the
+ * deal it names has a square, so a dead branch is dropped early. Counting
+ * stops at `enough`.
+ */
+function arrangements(p, deal, lists, clues, work, oneLand, enough = Infinity) {
+  const ids = deal.animals;
+  const zoneOf = p.zones.zoneOf;
+  const last = clues.map((cl) => Math.max(...[cl.a, cl.b, cl.b2].map((id) => ids.indexOf(id))));
+  const due = ids.map((_, k) => clues.filter((_, i) => last[i] === k));
+  const taken = [];
+  let count = 0;
+  const walk = (k) => {
+    if (count >= enough) return;
+    if (k === ids.length) {
+      count++;
+      return;
+    }
+    for (const x of lists[k]) {
+      if (oneLand && taken.includes(zoneOf[x])) continue;
+      work[ids[k]] = x;
+      if (!due[k].every((cl) => holds(cl, p.ctx, work) === true)) continue;
+      taken.push(zoneOf[x]);
+      walk(k + 1);
+      taken.pop();
+    }
+    work[ids[k]] = -1;
+  };
+  walk(0);
+  return count;
+}
+
 function auditPuzzle(p, tier) {
   const R = p.R;
   const problems = [];
@@ -163,7 +198,8 @@ function auditPuzzle(p, tier) {
   }
   const perLand = p.lands.map(() => 0);
   for (let z = 0; z < p.zones.count; z++) perLand[p.zoneLand[z]]++;
-  if (new Set(perLand).size !== 1) problems.push(`colours share out unevenly ${perLand}`);
+  // as even as the count allows: a board of four lands is 2, 1, 1
+  if (Math.max(...perLand) - Math.min(...perLand) > 1) problems.push(`colours share out unevenly ${perLand}`);
 
   // --- landmarks: on the board, never under an animal or each other --------
   const marked = new Set();
@@ -219,20 +255,8 @@ function auditPuzzle(p, tier) {
 
     const work = Int32Array.from(solution);
     for (const a of p.animals) if (a.round >= r) work[a.id] = -1; // later deals must not leak in
-    let wins = 0;
-    const zoneOf = p.zones.zoneOf;
-    for (const c0 of cand[0]) {
-      for (const c1 of cand[1]) {
-        for (const c2 of cand[2]) {
-          // a land takes one animal -- only ever in question when two share a colour
-          if (zoneOf[c0] === zoneOf[c1] || zoneOf[c0] === zoneOf[c2] || zoneOf[c1] === zoneOf[c2]) continue;
-          work[deal.animals[0]] = c0;
-          work[deal.animals[1]] = c1;
-          work[deal.animals[2]] = c2;
-          if (deal.clues.every((cl) => holds(cl, p.ctx, work) === true)) wins++;
-        }
-      }
-    }
+    // a land takes one animal -- only ever in question when two share a colour
+    const wins = arrangements(p, deal, cand, deal.clues, work, true, 2);
     if (wins !== 1) problems.push(`deal ${r + 1}: ${wins} arrangements satisfy the clues, want 1`);
 
     const fair = deducible(p, deal, cand, tier);
@@ -258,17 +282,7 @@ function auditPuzzle(p, tier) {
             !mentioned[k] ? cells.length : cells.filter((x) => {
               // an animal the sentence never names is never read, so any square will do
               const rest = cand.map((c, j) => (j === k ? [x] : mentioned[j] ? c : [c[0]]));
-              for (const y0 of rest[0]) {
-                for (const y1 of rest[1]) {
-                  for (const y2 of rest[2]) {
-                    trial[deal.animals[0]] = y0;
-                    trial[deal.animals[1]] = y1;
-                    trial[deal.animals[2]] = y2;
-                    if (part.clues.every((cl) => holds(cl, p.ctx, trial) === true)) return true;
-                  }
-                }
-              }
-              return false;
+              return arrangements(p, deal, rest, part.clues, trial, false, 1) > 0;
             }).length
           );
           survivors.forEach((n, k) => {

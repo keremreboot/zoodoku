@@ -39,7 +39,14 @@ import { LANDMARKS, pickLands, readAnimal } from './habitats.js';
 import { evenSizes, makeZones, variedSizes } from './zones.js';
 import { manhattan, neighbours, range, shuffle } from './util.js';
 
-const LANDS_PER_DEAL = 3;
+/** Colours on a board: every level draws three lands from the pool. */
+const COLOURS = 3;
+
+/** Most animals one deal can bring. */
+export const MAX_DEAL = 4;
+
+/** Most lands a board can have -- each colour has six animals to cast. */
+const MAX_LANDS = 18;
 
 /** Smallest and largest board the editor offers. */
 export const SIZES = { min: 5, max: 9 };
@@ -48,21 +55,35 @@ export const SIZES = { min: 5, max: 9 };
 export const MAX_LANDMARKS = 3;
 
 /**
- * How many lands a board of side N can be cut into: a multiple of three, since
- * every deal is three animals and each colour gets the same number of lands,
- * and no land smaller than four squares on average -- below that, a land is
- * barely a place.
+ * How many lands a board of side N can be cut into, for deals of `size`
+ * animals: a whole number of deals, at least one land of each colour, and no
+ * land smaller than four squares on average -- below that, a land is barely a
+ * place.
  */
-export function landOptions(N) {
+export function landOptions(N, size = 3) {
   const out = [];
-  for (let n = LANDS_PER_DEAL; n <= Math.floor((N * N) / 4); n += LANDS_PER_DEAL) out.push(n);
+  const most = Math.min(MAX_LANDS, Math.floor((N * N) / 4));
+  for (let n = size; n <= most; n += size) if (n >= COLOURS) out.push(n);
+  return out;
+}
+
+/**
+ * The size of each deal, in order. A deal brings one to four animals: one at a
+ * time is the gentlest way in -- a single card, a single place to find -- and
+ * four at once is the most to hold in the head. Lands that do not split evenly
+ * leave the last deal smaller.
+ */
+export function dealSizes(spec) {
+  const size = Math.max(1, Math.min(MAX_DEAL, spec.dealSize ?? 3));
+  const out = [];
+  for (let left = spec.lands; left > 0; left -= size) out.push(Math.min(size, left));
   return out;
 }
 
 /** A spec the editor starts from, and the shape every spec has. */
 export const DEFAULT_SPEC = {
   N: 6, // board side
-  lands: 6, // how many lands; one animal each, three per deal
+  lands: 6, // how many lands; one animal each
   tier: 0, // how much a deal's animals may lean on each other -- see deduce.js
   vocab: 0, // how far along VOCABULARY the clues may reach -- 0 is one plain fact at a time
   spare: 1, // clues per deal beyond the minimum, as confirmation
@@ -70,6 +91,7 @@ export const DEFAULT_SPEC = {
   landmarks: 2, // most fixed things on the board; any no clue mentions are taken away
   varied: true, // lands of clearly different sizes, so one can be "the biggest"
   coords: false, // allow "I'm in row 3" -- plain, but it hands the answer over
+  dealSize: 3, // animals a deal brings at once, 1 to 4 -- see dealSizes
   depth: 1, // fewest squares any one sentence may leave an animal -- see chooseClues
   pairs: 0, // swaps that give two deals each two animals of one colour -- see dealColours
   footholds: null, // animals per deal their own card places, exactly -- a number, or one per deal; null for any -- see footholdsAt
@@ -90,9 +112,11 @@ export function footholdsAt(spec, round) {
 }
 
 /**
- * Most swaps a level can take: each one needs two deals of its own.
+ * Most swaps a level can take: each one needs two deals of three of its own.
+ * Deals of four bring two of a colour anyway -- there are only three colours --
+ * and deals of one or two are kept to one of each.
  */
-export const maxPairs = (lands) => Math.floor(lands / LANDS_PER_DEAL / 2);
+export const maxPairs = (lands, size = 3) => (size === 3 ? Math.floor(lands / 3 / 2) : 0);
 
 /** Kinds that read the same both ways round, so one of the pair is redundant. */
 const MIRROR = {
@@ -183,16 +207,17 @@ function colourLands(zones, count, rng) {
     (x, y) => zones.zoneCells[y].length - zones.zoneCells[x].length
   );
   const zoneLand = new Int8Array(count);
-  for (let k = 0; k < count; k += LANDS_PER_DEAL) {
-    const colours = shuffle(range(LANDS_PER_DEAL), rng);
-    for (let c = 0; c < LANDS_PER_DEAL; c++) zoneLand[bySize[k + c]] = colours[c];
+  for (let k = 0; k < count; k += COLOURS) {
+    const colours = shuffle(range(COLOURS), rng);
+    for (let c = 0; c < COLOURS && k + c < count; c++) zoneLand[bySize[k + c]] = colours[c];
   }
   return zoneLand;
 }
 
 /**
- * The colours of each deal's three animals. Most deals are one of each. A
- * pair swaps one animal between two deals: one gives up its Ocean for a second
+ * The colours of each deal's animals. A deal of up to three is one of each; a
+ * deal of four has to double one. A pair swaps one animal between two deals of
+ * three: one gives up its Ocean for a second
  * Meadow and the other takes that Ocean for its Meadow, so each colour still
  * has as many lands as animals, and both deals now hold two animals of one
  * colour.
@@ -202,15 +227,30 @@ function colourLands(zones, count, rng) {
  * say which -- but a land takes one animal, so the moment one of them is
  * confined to a land, the other is shut out of it.
  */
-function dealColours(rounds, pairs, rng) {
-  const deals = range(rounds).map(() => range(LANDS_PER_DEAL));
-  if (!pairs) return deals;
-  const order = shuffle(range(rounds), rng);
-  for (let p = 0; p < pairs; p++) {
-    const [gets, gives] = [deals[order[2 * p]], deals[order[2 * p + 1]]];
-    const [twice, moved] = shuffle(range(LANDS_PER_DEAL), rng);
-    gets[gets.indexOf(moved)] = twice;
-    gives[gives.indexOf(twice)] = moved;
+function dealColours(sizes, counts, pairs, rng) {
+  // One of each where the deal has room, drawing on whichever colour has the
+  // most lands still to deal, so the last deals are not left with a pile of
+  // one colour. A deal of four always doubles one.
+  const left = counts.slice();
+  const deals = sizes.map((size) => {
+    const cols = [];
+    for (let k = 0; k < size; k++) {
+      const order = shuffle(range(COLOURS), rng).sort((x, y) => left[y] - left[x]);
+      const fresh = order.filter((h) => left[h] > 0 && !cols.includes(h));
+      const h = fresh.length ? fresh[0] : order.find((h) => left[h] > 0);
+      cols.push(h);
+      left[h]--;
+    }
+    return cols;
+  });
+  if (pairs) {
+    const plain = shuffle(range(deals.length), rng).filter((r) => deals[r].length === 3 && new Set(deals[r]).size === 3);
+    for (let p = 0; p < pairs && 2 * p + 1 < plain.length; p++) {
+      const [gets, gives] = [deals[plain[2 * p]], deals[plain[2 * p + 1]]];
+      const [twice, moved] = shuffle(range(COLOURS), rng);
+      gets[gets.indexOf(moved)] = twice;
+      gives[gives.indexOf(twice)] = moved;
+    }
   }
   return deals.map((cols) => cols.sort((x, y) => x - y));
 }
@@ -220,12 +260,13 @@ function dealColours(rounds, pairs, rng) {
  * puts a deal's animals within reach of each other, so that "I'm next to the
  * fish and the lion" is a sentence this game can produce.
  */
-function groupRounds(zones, byLand, rounds, pairs, rng) {
+function groupRounds(zones, byLand, sizes, pairs, rng) {
   let best = null;
   let bestScore = -Infinity;
+  const counts = byLand.map((list) => list.length);
   for (let t = 0; t < 60; t++) {
     const lists = byLand.map((list) => shuffle([...list], rng));
-    const groups = dealColours(rounds, pairs, rng).map((cols) => cols.map((h) => lists[h].pop()));
+    const groups = dealColours(sizes, counts, pairs, rng).map((cols) => cols.map((h) => lists[h].pop()));
     let score = 0;
     for (const g of groups) {
       for (let i = 0; i < g.length; i++) {
@@ -241,7 +282,7 @@ function groupRounds(zones, byLand, rounds, pairs, rng) {
 }
 
 /**
- * Where in its land each of a deal's three animals ends up. For a deal whose
+ * Where in its land each of a deal's animals ends up. For a deal whose
  * animals may lean on each other, they are stood near each other, which is
  * what gives them something to say about each other. For a deal where each
  * stands alone, anywhere will do: the landmarks are set down near them
@@ -251,22 +292,30 @@ function groupRounds(zones, byLand, rounds, pairs, rng) {
  * the ___ edge" in every other sentence.)
  */
 function placeTrio(R, zones, group, tier, rng) {
-  const [A, B, C] = group.map((z) => zones.zoneCells[z]);
-  if (tier === 0) return [A, B, C].map((cells) => cells[(rng() * cells.length) | 0]);
-  const scored = [];
-  for (const a of A) {
-    for (const b of B) {
-      for (const c of C) {
-        const ab = manhattan(R, a, b);
-        const ac = manhattan(R, a, c);
-        const bc = manhattan(R, b, c);
-        const touching = (ab === 1) + (ac === 1) + (bc === 1);
-        const close = (ab === 2) + (ac === 2) + (bc === 2);
-        scored.push({ cells: [a, b, c], score: touching * 6 + close * 2 - (ab + ac + bc) * 0.25 });
+  const lists = group.map((z) => zones.zoneCells[z]);
+  if (tier === 0 || lists.length === 1) return lists.map((cells) => cells[(rng() * cells.length) | 0]);
+  const score = (cells) => {
+    let v = 0;
+    for (let i = 0; i < cells.length; i++) {
+      for (let j = i + 1; j < cells.length; j++) {
+        const d = manhattan(R, cells[i], cells[j]);
+        v += (d === 1) * 6 + (d === 2) * 2 - d * 0.25;
       }
     }
+    return v;
+  };
+  // every seating for up to three animals; for four, too many to list, a sample
+  const seatings = [];
+  if (lists.length <= 3) {
+    const walk = (k, acc) => {
+      if (k === lists.length) return void seatings.push(acc);
+      for (const i of lists[k]) walk(k + 1, [...acc, i]);
+    };
+    walk(0, []);
+  } else {
+    for (let t = 0; t < 4000; t++) seatings.push(lists.map((cells) => cells[(rng() * cells.length) | 0]));
   }
-  scored.sort((x, y) => y.score - x.score);
+  const scored = seatings.map((cells) => ({ cells, score: score(cells) })).sort((x, y) => y.score - x.score);
   const shortlist = scored.slice(0, Math.max(1, Math.ceil(scored.length * 0.15)));
   return shortlist[(rng() * shortlist.length) | 0].cells;
 }
@@ -834,17 +883,18 @@ function chooseClues(cand, pool, ctx, work, subs, spec, spent, rng, want = null,
 // --- one whole level -------------------------------------------------------
 
 function attempt(R, rng, spec) {
-  const sizes = spec.varied
+  const landSizes = spec.varied
     ? variedSizes(R.cells, spec.lands, rng)
     : evenSizes(R.cells, spec.lands, rng);
-  const zones = makeZones(R, spec.lands, rng, sizes);
-  const lands = pickLands(rng, LANDS_PER_DEAL);
-  const rounds = spec.lands / LANDS_PER_DEAL;
+  const zones = makeZones(R, spec.lands, rng, landSizes);
+  const lands = pickLands(rng, COLOURS);
+  const dealt = dealSizes(spec);
+  const rounds = dealt.length;
 
   const zoneLand = colourLands(zones, spec.lands, rng);
   const byLand = lands.map((_, h) => range(spec.lands).filter((z) => zoneLand[z] === h));
 
-  const groups = groupRounds(zones, byLand, rounds, spec.pairs ?? 0, rng);
+  const groups = groupRounds(zones, byLand, dealt, spec.pairs ?? 0, rng);
   const zoneRound = new Int8Array(spec.lands);
   groups.forEach((g, r) => g.forEach((z) => (zoneRound[z] = r)));
 

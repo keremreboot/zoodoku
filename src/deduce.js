@@ -47,7 +47,7 @@ export const TIERS = [
 
 /**
  * Sort a deal's clues by who they are about.
- * @param subs the deal's three animal ids
+ * @param subs the deal's animal ids
  * @returns [{ a, b, clues }] with a and b indexes into subs, b = -1 for one animal
  */
 export function groupClues(clues, subs) {
