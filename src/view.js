@@ -94,7 +94,7 @@ export class View {
     this.tokens = [];
     this.misses = []; // { cell, t } squares that just cost a strike, fading from 1 to 0
     this.crossOut = true; // mark squares no animal can ever take; the editor turns it off
-    this.crosses = new Set(); // squares the player crossed out by hand -- owned by main.js
+    this.circled = new Set(); // squares the player marked by hand -- owned by main.js
   }
 
   setPuzzle(game) {
@@ -241,7 +241,7 @@ export class View {
     this.drawLands(ctx);
     this.drawGrid(ctx);
     if (this.crossOut) this.drawDead(ctx);
-    this.drawCrosses(ctx);
+    this.drawCircles(ctx);
     this.drawLabels(ctx);
     this.drawLandmarks(ctx);
     this.drawHover(ctx);
@@ -342,7 +342,7 @@ export class View {
   // crossed-out land the name is the only way a colourblind player can tell
   // which colour it was. So a taken land's name is drawn over its crosses, on
   // a small plate of the land's own colour so the lines do not cut the letters
-  // -- and the same goes for a name sitting on a square the player crossed.
+  // -- and the same goes for a name sitting on a square the player circled.
   drawLabels(ctx) {
     const R = this.R;
     const S = this.S;
@@ -394,9 +394,9 @@ export class View {
 
       const cx = this.px(left) + run / 2;
       const cy = this.py(r) + S / 2;
-      let crossed = taken.has(zone);
-      for (let c = left; c < left + spot.len && !crossed; c++) crossed = this.crosses.has(R.idx(r, c));
-      if (crossed) {
+      let covered = taken.has(zone);
+      for (let c = left; c < left + spot.len && !covered; c++) covered = this.circled.has(R.idx(r, c));
+      if (covered) {
         const w = Math.min(ctx.measureText(text).width + size * 0.9, run - 4);
         const h = size * 1.55;
         ctx.globalAlpha = 0.92;
@@ -448,34 +448,33 @@ export class View {
   }
 
   /**
-   * The player's own crosses, which have to read as a different thing from the
-   * board's at a glance: the board's can never be taken back, these can. So the
-   * board's stay faint, thin and ruler-straight, like print, and these are bold
-   * and bowed a little, like a pen -- each bow fixed by the square, so a cross
-   * does not wobble from one frame to the next.
+   * The player's own marks, which have to read as a different thing from the
+   * board's crosses at a glance: the board's can never be taken back, these
+   * can. So they differ in shape as well as weight -- the board's are faint,
+   * thin, ruler-straight crosses, like print, and these are bold circles,
+   * drawn like a pen does one: a touch oval, tilted, the stroke running a
+   * little past where it started. Tilt and shape are fixed by the square, so a
+   * circle does not wobble from one frame to the next.
    */
-  drawCrosses(ctx) {
-    if (!this.crosses.size) return;
+  drawCircles(ctx) {
+    if (!this.circled.size) return;
     const R = this.R;
     const S = this.S;
-    const inset = S * 0.25;
     ctx.save();
     ctx.strokeStyle = PALETTE.ink;
     ctx.globalAlpha = 0.85;
-    ctx.lineWidth = Math.max(2, S * 0.075);
+    ctx.lineWidth = Math.max(2, S * 0.07);
     ctx.lineCap = 'round';
-    ctx.beginPath();
-    for (const i of this.crosses) {
-      const x = this.px(R.col(i));
-      const y = this.py(R.row(i));
-      const bow = ((((i * 7919) % 11) / 10) - 0.5) * S * 0.09;
-      const bow2 = ((((i * 104729) % 13) / 12) - 0.5) * S * 0.09;
-      ctx.moveTo(x + inset, y + inset);
-      ctx.quadraticCurveTo(x + S / 2 + bow, y + S / 2 - bow, x + S - inset, y + S - inset);
-      ctx.moveTo(x + S - inset, y + inset);
-      ctx.quadraticCurveTo(x + S / 2 + bow2, y + S / 2 + bow2, x + inset, y + S - inset);
+    for (const i of this.circled) {
+      const cx = this.px(R.col(i)) + S / 2;
+      const cy = this.py(R.row(i)) + S / 2;
+      const tilt = ((((i * 7919) % 11) / 10) - 0.5) * 0.9;
+      const squash = 0.86 + (((i * 104729) % 7) / 6) * 0.1;
+      const start = (((i * 4099) % 12) / 12) * Math.PI * 2;
+      ctx.beginPath();
+      ctx.ellipse(cx, cy, S * 0.29, S * 0.29 * squash, tilt, start, start + Math.PI * 2.12);
+      ctx.stroke();
     }
-    ctx.stroke();
     ctx.restore();
   }
 

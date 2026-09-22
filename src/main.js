@@ -17,14 +17,14 @@
 // entirely, which puts nothing down and costs nothing.
 //
 // The marker is the other thing a hand can hold. With it up, a press on the
-// board crosses a square out, or clears it if it was crossed, and dragging on
+// board circles a square, or clears it if it was circled, and dragging on
 // carries the same stroke across every square passed over. Holding an animal
 // and holding the marker are one hand, so picking up either puts the other
-// down. The player's crosses are notes, not rules -- a crossed square still
-// takes an animal -- and they are wiped each time an animal lands: a cross
-// does not say which animal it was ruling out, so after a placement there is
-// no telling which still count. The board's own crosses, on lands that already
-// have their animal, are facts, and the marker cannot touch them.
+// down. The player's circles are notes, not rules -- a circled square still
+// takes an animal, or doesn't -- and they are wiped each time an animal lands:
+// a circle does not say which animal it was about, so after a placement there
+// is no telling which still count. The board's own crosses, on lands that
+// already have their animal, are facts, and the marker cannot touch them.
 
 import { GLOSSARY, chunks } from './clues.js';
 import { TIERS } from './deduce.js';
@@ -52,8 +52,8 @@ let revealed = false; // the answer was shown, so finishing does not count
 let game = null;
 let carry = null; // animal id in hand, or null
 let marking = false; // the marker is in hand instead of an animal
-const crosses = new Set(); // squares the player crossed out; the view draws them
-view.crosses = crosses;
+const circled = new Set(); // squares the player marked; the view draws them
+view.circled = circled;
 let press = null; // { x, y, moved, from } for the pointer gesture in progress
 let flash = null; // { text, tone } shown in place of the usual note for a moment
 let flashTimer = 0;
@@ -121,7 +121,7 @@ function play(lv, label) {
   game = new Game(puzzleFromLevel(lv));
   carry = null;
   marking = false;
-  crosses.clear();
+  circled.clear();
   press = null;
   flash = null;
   view.setPuzzle(game);
@@ -422,7 +422,7 @@ function tryPlace(cell) {
     return;
   }
 
-  crosses.clear();
+  circled.clear();
   if (game.settle()) {
     if (game.isSolved()) {
       setFlash('the last land is settled');
@@ -438,7 +438,7 @@ function tryPlace(cell) {
 // --- the marker --------------------------------------------------------------
 
 /** Squares the marker can touch: on the board, not a landmark, and not already crossed out by the board. */
-const crossable = (cell) => cell >= 0 && !game.landmarkAt(cell) && !game.isSpent(cell);
+const markable = (cell) => cell >= 0 && !game.landmarkAt(cell) && !game.isSpent(cell);
 
 function setMarking(on) {
   if (!game || game.isSolved() || game.isLost()) on = false;
@@ -447,27 +447,27 @@ function setMarking(on) {
   refresh();
 }
 
-function setCross(cell, on) {
-  if (on) crosses.add(cell);
-  else crosses.delete(cell);
+function setCircle(cell, on) {
+  if (on) circled.add(cell);
+  else circled.delete(cell);
   mark();
 }
 
-/** A press with the marker up: cross or clear the square, and say why when it will not take either. */
+/** A press with the marker up: circle or clear the square, and say why when it will not take either. */
 function startStroke(ev) {
   const cell = view.cellAt(ev.clientX, ev.clientY);
   if (cell < 0) return;
-  if (!crossable(cell)) {
+  if (!markable(cell)) {
     const landmark = game.landmarkAt(cell);
     if (landmark) setFlash(`the ${landmark.name} is there`, '');
-    else if (game.animalAt(cell) < 0) setFlash('that land is taken', ''); // the board's cross, not yours
+    else if (game.animalAt(cell) < 0) setFlash('that land is taken', ''); // the board's cross, not the player's
     refresh();
     return;
   }
-  // the first square decides the stroke: crossing, or clearing
-  const paint = !crosses.has(cell);
+  // the first square decides the stroke: circling, or clearing
+  const paint = !circled.has(cell);
   press = { x: ev.clientX, y: ev.clientY, moved: false, from: 'marker', paint, last: cell };
-  setCross(cell, paint);
+  setCircle(cell, paint);
 }
 
 // --- pointer -----------------------------------------------------------------
@@ -508,7 +508,7 @@ addEventListener('pointermove', (ev) => {
     const cell = view.cellAt(ev.clientX, ev.clientY);
     if (cell !== press.last) {
       press.last = cell;
-      if (crossable(cell)) setCross(cell, press.paint);
+      if (markable(cell)) setCircle(cell, press.paint);
     }
     return;
   }
@@ -592,7 +592,7 @@ ui.markBtn.addEventListener('click', () => setMarking(!marking));
 ui.reveal.addEventListener('click', () => {
   if (!game) return;
   carry = null;
-  crosses.clear();
+  circled.clear();
   revealed = true;
   game.reveal();
   onSolved();
