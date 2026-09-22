@@ -9,7 +9,10 @@
 // footholds), and how many animals arrive at once (the deal size). Players said the difficulty jumped when several of those moved
 // at once, so the shape is deliberate:
 //
-//   - from the very first level, every card is two short, positive facts,
+//   - the first two levels are a doorway: one short, positive fact to a card,
+//     one card at a time and then two, so the rules can be learned before
+//     anything has to be worked out;
+//   - after them, every card is two short, positive facts,
 //     neither of which says where the animal is on its own: the first leaves
 //     several squares, the second cuts them to one -- "I'm in the board's top
 //     half. I'm in the middle of the board." Players said one-fact cards were
@@ -43,6 +46,8 @@
 import { DEFAULT_SPEC } from './generate.js';
 
 export const FUNNEL = [
+  { N: 5, lands: 3, dealSize: 1, tier: 0, vocab: 0, perCard: 1, spare: 0, landmarks: 2 },
+  { N: 5, lands: 4, dealSize: 2, tier: 0, vocab: 0, perCard: 1, spare: 0, landmarks: 2 },
   { N: 6, lands: 3, dealSize: 1, tier: 0, vocab: 0, perCard: 2, spare: 0, landmarks: 2, depth: 2 },
   { N: 6, lands: 4, dealSize: 2, tier: 0, vocab: 0, perCard: 2, spare: 0, landmarks: 2, depth: 2 },
   { N: 6, lands: 4, dealSize: 2, tier: 1, vocab: 0, perCard: 2, spare: 0, landmarks: 2, depth: 2, footholds: 1 },

@@ -8,7 +8,8 @@
 // two-of-a-colour deals actually need both lands, doesn't dip below the previous
 // level's difficulty or climb more than half again above it (if it can help
 // it), then picks the most varied: fewest repeats of any one kind of sentence,
-// then the fewest "not"s, then the most kinds. Deterministic seeds, so a
+// then the least like the level before, then the fewest "not"s, then the most
+// kinds. Deterministic seeds, so a
 // rerun gives the same levels until the generator changes.
 //
 // THIS OVERWRITES levels/levels.json. Use it only while the levels are still the
@@ -37,6 +38,14 @@ const KEEP = new Map(
 const file = new URL('../levels/levels.json', import.meta.url);
 const old = fs.existsSync(file) ? JSON.parse(fs.readFileSync(file, 'utf8')) : emptyBook();
 const book = emptyBook();
+
+/** The kind of every sentence a level says, one entry per sentence. */
+function saidKinds(lv) {
+  const p = puzzleFromLevel(lv);
+  return p.deals.flatMap((d) =>
+    d.animals.flatMap((id) => chunks(d.clues.filter((cl) => cl.a === id), p.ctx).map((c) => c.clues[0].k))
+  );
+}
 let floor = 0;
 FUNNEL.forEach((spec, step) => {
   const source = old.levels[(KEEP.get(step + 1) ?? 0) - 1];
@@ -86,9 +95,17 @@ FUNNEL.forEach((spec, step) => {
   const gentle = built.filter((lv) => lv.stats.difficulty <= Math.max(floor * 1.5, floor + 3));
   if (gentle.length) built.splice(0, built.length, ...gentle);
   else built.sort((x, y) => x.stats.difficulty - y.stats.difficulty).splice(3);
+  // and unlike the level before: two small levels that say the same three
+  // sentences read as one level twice
+  const before = book.levels.length ? new Set(saidKinds(book.levels[book.levels.length - 1])) : new Set();
+  const echo = (lv) => {
+    const said = saidKinds(lv);
+    return said.filter((k) => before.has(k)).length / Math.max(1, said.length);
+  };
   built.sort(
     (x, y) =>
       x.stats.repeats.most.uses - y.stats.repeats.most.uses ||
+      echo(x) - echo(y) ||
       x.stats.nots - y.stats.nots ||
       y.stats.repeats.kinds - x.stats.repeats.kinds
   );

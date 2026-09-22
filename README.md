@@ -40,18 +40,22 @@ person, playtested and locked in — the game never makes up a board of its own.
 Every level is open from the start; they are meant to be played in order, and
 the level list ticks off the ones finished.
 
-There are fifteen, arranged as a funnel. From the very first level every card
-is two short, positive facts, neither of which says where the animal is by
-itself: the first leaves several squares, the second cuts them to one — *I'm in
-the board's top half. I'm next to Desert.* That is the whole game, and it
-starts on the first card. (An earlier version opened with one fact to a card,
+There are seventeen, arranged as a funnel. The first two are a doorway: one
+short, positive fact to a card — *I'm in the middle of the board*, *I'm next to
+the mushroom* — one card at a time and then two, so the rules can be learned
+before anything has to be worked out.
+
+From level 3 every card is two short, positive facts, neither of which says
+where the animal is by itself: the first leaves several squares, the second
+cuts them to one — *I'm in the board's top half. I'm next to Desert.* That is
+the whole game. (An earlier version kept one fact to a card for four levels,
 and players found it a run of corners and edges each pointing at one square,
 with nothing to work out.)
 
-The first level deals one card at a time; the second two at a time; the third
-two where one card leans on the other — *I'm next to the pig* — which only
-narrows once the pig is down. The fourth deals three, each standing alone
-again, and the fifth brings "not" and vaguer facts. Then animals lean on one
+Level 3 deals one card at a time; level 4 two at a time; level 5 two where one
+card leans on the other — *I'm next to the pig* — which only narrows once the
+pig is down. Level 6 deals three, each standing alone again, and level 7
+brings "not" and vaguer facts. Then animals lean on one
 another in earnest: two of a deal
 still found from their own card and the third through them, then deals that
 bring two animals of one colour, then fewer starting points, then all together,
@@ -302,10 +306,10 @@ The difficulty score puts these together per deal: its size, weighted up for
 every extra fact an animal needs, every extra round, every missing starting
 point and each step of leaning. The old score grew only with the board, so on
 paper the last levels were harder while in play the reasoning had stopped
-growing at level 9. The fifteen levels score 3, 5, 9, 6, 6, 7, 11, 13, 19, 21,
-31, 33, 44, 60 and 66 — no step more than about half again the one before, and
-only one dip: level 3, the first card that leans on another, scores above the
-standing-alone levels 4 and 5 that follow it. The starter script refuses to
+growing at level 9. The seventeen levels score 2, 3, 3, 5, 9, 6, 6, 7, 11, 13,
+19, 21, 31, 33, 44, 60 and 66 — no step more than about half again the one
+before, and only one dip: level 5, the first card that leans on another, scores
+above the standing-alone levels 6 and 7 that follow it. The starter script refuses to
 jump further than that when it can help it.
 
 ## You never have to guess
