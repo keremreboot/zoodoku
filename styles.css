@@ -506,6 +506,10 @@ button.ghost {
   color: var(--muted);
 }
 
+.sheet-note a {
+  color: var(--ink);
+}
+
 .field {
   display: flex;
   align-items: center;
